@@ -1,7 +1,7 @@
 # OpenSafetyRTOS — Safety Case
 
 **Document ID:** OSR-SC-001
-**Version:** 0.1 (Skeleton)
+**Version:** 0.2
 **Status:** In Progress
 **Date:** 2026-04-18
 **Target Standard:** ISO 26262 Part 2 (Functional Safety Management)
@@ -77,9 +77,9 @@ G1: SafetyFunction이 ASIL-D 요건을 달성하고 Safe State로 전이한다
 
 | 목표 | 증거 문서 | 상태 |
 |------|---------|------|
-| G1.1 — ASIL-D(D) 개발 | HARA, SSRS, FMEA, 코드 리뷰, MC/DC 결과 | 🔴 미완성 |
+| G1.1 — ASIL-D(D) 개발 | HARA, FSC, SSRS, FMEA, 코드 리뷰, MC/DC 결과 | 🟡 진행중 |
 | G1.2 — FFI 달성 | ADR-002, ARCHITECTURE.md §5, MPU 설정 코드, FFI 테스트 결과 | 🟡 진행중 |
-| G1 — Safe State 전이 | SAFE_STATE_DEFINITION.md, Watchdog 테스트 결과 | 🟡 진행중 |
+| G1 — Safe State 전이 | SAFE_STATE_DEFINITION.md ✅, Watchdog 테스트 결과 | 🟡 진행중 |
 | 프로세스 준수 | SAFETY_PLAN.md, CM_PLAN.md, QA 감사 기록 | 🟡 진행중 |
 | 도구 신뢰성 | TOOL_QUALIFICATION_PLAN.md, 도구 검증 결과 | 🔴 미완성 |
 
@@ -89,8 +89,9 @@ G1: SafetyFunction이 ASIL-D 요건을 달성하고 Safe State로 전이한다
 
 | 증거 ID | 문서 | 담당 | Phase |
 |---------|------|------|-------|
-| E-G1.1-01 | HARA (위험원 분석 및 위험도 평가) | Agent-Safety | Phase 1 |
-| E-G1.1-02 | SSRS (소프트웨어 안전 요구사항) — OSR-SSRS-001 | Agent-Safety | Phase 1 |
+| E-G1.1-01 | HARA (위험원 분석 및 위험도 평가) — OSR-HARA-001 ✅ + 확인 검토 OSR-CR-HARA-001 ✅ | Agent-Safety / Agent-QA | Phase 1 🟢 완료 |
+| E-G1.1-01b | FSC (기능안전 개념) — OSR-FSC-001 ✅ + 확인 검토 OSR-CR-FSC-001 ✅ (조건부 승인, 조치 대기) | Agent-Safety / Agent-QA | Phase 1 🟡 진행중 |
+| E-G1.1-02 | SSRS (소프트웨어 안전 요구사항) — OSR-SSRS-001 | Agent-Safety | Phase 1 🔴 미시작 |
 | E-G1.1-03 | FMEA — `safety/doc/FMEA_TEMPLATE.md` | Agent-Safety | Phase 2~3 |
 | E-G1.1-04 | MISRA-C 정적 분석 결과 | Agent-Safety | Phase 3 |
 | E-G1.1-05 | 코드 리뷰 기록 (PR history) | Agent-QA | Phase 3 |
@@ -123,15 +124,16 @@ Phase가 진행됨에 따라 아래 항목이 채워진다.
 
 | # | 항목 | 담당 | 목표 Phase | 상태 |
 |---|------|------|-----------|------|
-| OP-001 | HARA 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🔴 미시작 |
+| OP-001 | HARA 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟢 완료 (2026-04-18) — OSR-CR-HARA-001 조건부 승인, 조치 항목 Agent-Safety에 회부 |
 | OP-002 | SSRS (OSR-SSRS-001) 작성 및 승인 | Agent-Safety | Phase 1 | 🔴 미시작 |
-| OP-003 | SAFE_STATE_DEFINITION.md 작성 | Agent-Docs | Phase 1 | 🔴 미시작 |
+| OP-003 | FSC (OSR-FSC-001) 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟢 완료 (2026-04-18) — OSR-CR-FSC-001 조건부 승인, 조치 항목 Agent-Safety에 회부 |
+| OP-003a | SAFE_STATE_DEFINITION.md 작성 | Agent-Safety | Phase 1 | 🟢 완료 (2026-04-18) |
 | OP-004 | FMEA 완성 | Agent-Safety | Phase 2~3 | 🟡 진행중 |
 | OP-005 | FFI 분석 보고서 (OSR-FFIA-001) 작성 | Agent-Safety | Phase 3 | 🔴 미시작 |
 | OP-006 | MPU 구현 코드 작성 및 리뷰 | Agent-Safety | Phase 3 | 🔴 미시작 |
 | OP-007 | MC/DC 커버리지 100% 달성 및 결과 문서화 | Agent-VnV | Phase 4 | 🔴 미시작 |
 | OP-008 | FFI 테스트 결과 문서화 | Agent-VnV | Phase 4 | 🔴 미시작 |
-| OP-009 | TOOL_QUALIFICATION_PLAN.md 작성 | Agent-Docs | Phase 0~1 | 🔴 미시작 |
+| OP-009 | TOOL_QUALIFICATION_PLAN.md 작성 | Agent-Build | Phase 0~1 | 🟢 완료 (2026-04-18) |
 | OP-010 | Functional Safety Audit 수행 (OSR-FSA-001) | Agent-QA | Phase 3~4 | 🔴 미시작 |
 | OP-011 | Functional Safety Assessment 수행 (OSR-FSAMNT-001) | Agent-QA | Phase 4~5 | 🔴 미시작 |
 | OP-012 | 외부 ISA 선정 및 계약 (TÜV SÜD 등) | Safety Manager | Phase 5 | 🔴 미시작 |
@@ -164,6 +166,7 @@ Phase가 진행됨에 따라 아래 항목이 채워진다.
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 0.1 | 2026-04-18 | Agent-Docs | Safety Case 골격 초안 생성 |
+| 0.2 | 2026-04-18 | Agent-QA | HARA 확인 검토 완료(OSR-CR-HARA-001) 반영. FSC 신규 증거 E-G1.1-01b 추가 및 확인 검토 완료(OSR-CR-FSC-001) 반영. OP-001 🟢, OP-003 🟢 갱신. |
 
 ---
 
