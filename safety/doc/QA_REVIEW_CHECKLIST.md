@@ -1,95 +1,97 @@
-# SafetyCase 내부 리뷰 체크리스트 (Agent-QA)
+# Confirmation Measures 체크리스트 (Agent-QA)
 
 **문서 ID:** OSR-QA-001
-**역할:** Internal SafetyCase Reviewer (ISO 26262 Part 2)
-**원칙:** Agent-Safety가 작성한 산출물을 Agent-QA가 독립 리뷰. 이 기록은 인증 증거.
+**근거:** ISO 26262 Part 2 Cl.8 (확인 검토), Cl.9 (기능안전 감사), Cl.10 (기능안전 평가)
+**수행자:** Agent-QA (Agent-Safety와 독립된 에이전트 — Part 2 독립성 요건)
 
 ---
 
-## 리뷰 워크플로우
+## Confirmation Measure 1: 확인 검토 (Confirmation Review) — Part 2 Cl.8
 
-```
-Agent-Safety 산출물 작성
-        ↓
-Agent-QA 독립 리뷰 (이 체크리스트)
-        ↓
-지적사항 → Agent-Safety 수정
-        ↓
-Agent-QA 재확인 → 승인
-        ↓
-리뷰 기록 safety/doc/reviews/ 에 보관
-```
+Agent-Safety가 작성한 SafetyCase 산출물을 단계별로 독립 검토한다.
 
----
-
-## HARA 리뷰 (OSR-QA-HARA)
-
+### HARA 검토 (OSR-CR-001)
 - [ ] 운영 상황(Operational Situation) 목록이 실제 차량 사용 환경을 충분히 커버함
 - [ ] 각 위험원(Hazard)에 대해 최악 조건(Worst Case)이 고려됨
 - [ ] ASIL 등급 산정 근거 (S/E/C 매트릭스)가 문서화됨
 - [ ] ASIL-D 이상 항목에 대해 안전 목표(Safety Goal)가 명확히 정의됨
-- [ ] 안전 목표가 검증 가능한 형태로 기술됨 (모호한 표현 없음)
+- [ ] 안전 목표가 검증 가능한 형태로 기술됨
 
-## FSC 리뷰 (OSR-QA-FSC)
+### FSC 검토 (OSR-CR-002)
+- [ ] 각 안전 목표가 기능안전 요구사항으로 분해됨
+- [ ] Decomposition 전략(QM + ASIL-D)이 FSC에 반영됨
+- [ ] FFI 달성 수단이 기능 수준에서 명시됨
+- [ ] 각 FSR → HARA 안전 목표 추적 가능
 
-- [ ] 각 안전 목표가 하나 이상의 기능안전 요구사항으로 분해됨
-- [ ] Decomposition 전략(FreeRTOS QM + SafetyFunction ASIL-D)이 FSC에 반영됨
-- [ ] FFI 달성 수단이 기능 수준에서 명시됨 (MPU 파티셔닝, Mailbox 패턴)
-- [ ] 각 FSR이 HARA 안전 목표로 추적 가능함
+### TSC 검토 (OSR-CR-003)
+- [ ] ARCHITECTURE.md와 TSC 내용이 정합함
+- [ ] QM/ASIL-D 파티션 경계가 명시됨
+- [ ] HW/SW 인터페이스 기술됨
+- [ ] 각 TSR → FSR 추적 가능
 
-## TSC 리뷰 (OSR-QA-TSC)
-
-- [ ] 시스템 아키텍처(ARCHITECTURE.md)와 TSC 내용이 정합함
-- [ ] QM 파티션과 ASIL-D 파티션 경계가 TSC에 명시됨
-- [ ] HW/SW 인터페이스 (MPU 설정, 인터럽트 벡터)가 TSC에 기술됨
-- [ ] 각 TSR이 FSR로 추적 가능함
-
-## SSRS 리뷰 (OSR-QA-SSRS)
-
+### SSRS 검토 (OSR-CR-004)
 - [ ] 모든 SSR에 고유 ID (SSR-NNN) 부여됨
-- [ ] 각 SSR이 TSR로 추적 가능함
-- [ ] SSR이 구현 가능하고 테스트 가능한 형태로 기술됨
-- [ ] SafetyFunction의 응답 시간 요구사항이 수치로 명시됨
-- [ ] Mailbox CRC/타임스탬프/범위 검증에 대한 SSR이 존재함
-- [ ] MPU 파티션 보호에 대한 SSR이 존재함
+- [ ] 각 SSR → TSR 추적 가능
+- [ ] SSR이 구현·테스트 가능한 형태로 기술됨
+- [ ] Mailbox 3단계 검증 SSR 존재
+- [ ] MPU 파티션 보호 SSR 존재
 
-## FMEA / 안전 분석 리뷰 (OSR-QA-FMEA)
+### FMEA 검토 (OSR-CR-005)
+- [ ] 모든 SafetyFunction 모듈의 Failure Mode 식별됨
+- [ ] 완화 조치가 SSR과 연결됨
+- [ ] Single Point Failure 대응 명시됨
 
-- [ ] 모든 SafetyFunction 모듈에 대한 Failure Mode가 식별됨
-- [ ] 각 Failure Mode의 완화 조치가 SSR과 연결됨
-- [ ] Single Point Failure에 대한 대응이 명시됨
-- [ ] FMEA 결과가 아키텍처 설계와 모순되지 않음
+### FFI 분석 검토 (OSR-CR-006)
+- [ ] QM→ASIL-D 모든 간섭 경로 식별됨 (메모리/인터럽트/타이밍/전원)
+- [ ] MPU 설정이 각 경로를 차단함 명시됨
+- [ ] HardFault → Safe State 전이 증명됨
 
-## FFI 분석 리뷰 (OSR-QA-FFI)
-
-- [ ] QM→ASIL-D 모든 간섭 경로가 식별됨 (메모리, 인터럽트, 타이밍, 전원)
-- [ ] MPU Region 설정이 각 간섭 경로를 차단함이 명시됨
-- [ ] Mailbox 검증 3단계(CRC/타임스탬프/범위)가 잔여 간섭 경로를 처리함
-- [ ] HardFault 발생 시 SafetyFunction이 Safe State로 전이함이 증명됨
-
-## 코드 리뷰 (OSR-QA-CODE) — kernel/safety/ 전용
-
-- [ ] MISRA-C:2012 필수(Mandatory) Rule 위반 없음
-- [ ] 각 함수에 SSR ID 주석 존재
-- [ ] 정적 분석 결과 첨부됨
-- [ ] 모든 분기 조건에 대한 테스트 케이스가 Agent-VnV에 의해 작성됨
-
-## V&V 결과 리뷰 (OSR-QA-VNV)
-
-- [ ] SafetyFunction 단위 테스트 MC/DC 100% 달성 확인
-- [ ] 테스트 작성자가 Agent-VnV임을 확인 (Agent-Safety 작성 금지)
-- [ ] 모든 SSR에 대응하는 테스트 케이스 존재 (RTM 확인)
-- [ ] 실패한 테스트가 없음 (또는 waiver 존재)
+### V&V 결과 검토 (OSR-CR-007)
+- [ ] SafetyFunction MC/DC 100% 달성
+- [ ] 테스트 작성자 = Agent-VnV (Agent-Safety 아님) 확인
+- [ ] 모든 SSR에 대응 테스트 케이스 존재 (RTM)
 
 ---
 
-## 리뷰 이력
+## Confirmation Measure 2: 기능안전 감사 (Functional Safety Audit) — Part 2 Cl.9
 
-| 리뷰 ID | 대상 산출물 | 날짜 | 결과 | 지적사항 수 | 비고 |
-|--------|-----------|------|------|-----------|------|
-| (Phase 진행 시 작성) | | | | | |
+기능안전 프로세스가 Safety Plan대로 수행되고 있는지 감사한다.
+산출물의 내용이 아닌 **프로세스 준수 여부**를 확인.
+
+| 감사 항목 | 확인 질문 | 결과 |
+|----------|----------|------|
+| Safety Plan 이행 | 각 Phase 활동이 SAFETY_PLAN.md 계획대로 수행됨? | |
+| 산출물 존재 | 각 Phase 종료 시 필수 산출물이 git에 커밋됨? | |
+| 리뷰 이력 | 모든 safety/* PR에 Agent-QA 승인 기록 존재? | |
+| 트레이스 | SSR → 코드 → 테스트 연결이 RTM에 기록됨? | |
+| MISRA 준수 | 정적 분석 결과가 PR에 첨부됨? | |
+| 변경 관리 | 설계 변경 시 ADR 작성됨? | |
+| 독립성 | Agent-Safety ≠ Agent-VnV ≠ Agent-QA 분리 유지됨? | |
+
+**감사 주기:** 각 Phase 종료 시
+**감사 기록:** safety/doc/audits/OSR-FSA-NNN.md
 
 ---
 
-**리뷰어:** Agent-QA (Independent)
-**작성자와 동일 에이전트 여부:** 반드시 No
+## Confirmation Measure 3: 기능안전 평가 (Functional Safety Assessment) — Part 2 Cl.10
+
+"이 시스템이 의도한 안전 수준(ASIL-D)을 실제로 달성하였는가?"를 종합 평가.
+Phase 5(인증 준비) 단계에서 수행.
+
+| 평가 항목 | 평가 기준 |
+|----------|----------|
+| SafetyCase 완결성 | 모든 안전 목표에 대한 논증과 증거가 갖춰져 있는가 |
+| FFI 달성 | QM 파티션이 ASIL-D 파티션에 간섭할 수 없음이 증명되었는가 |
+| 잔여 위험 | 식별된 모든 위험원에 대한 완화 조치가 충분한가 |
+| 프로세스 준수 | ISO 26262 Part 2/6/8 요건이 전체적으로 이행되었는가 |
+| V&V 충분성 | 테스트 커버리지와 범위가 ASIL-D 요건을 충족하는가 |
+
+**결과:** [ ] 적합 / [ ] 조건부 적합 (조건: ___) / [ ] 부적합
+
+---
+
+## 리뷰 이력 추적
+
+| 문서 ID | 대상 산출물 | Measure | 날짜 | 결과 | 지적사항 |
+|--------|-----------|---------|------|------|---------|
+| | | | | | |

@@ -79,20 +79,26 @@
 |            | - FFI 검증: QM 파티션 격리 테스트 |
 | 독립성 요건 | Agent-Safety가 작성한 코드를 Agent-VnV가 독립적으로 테스트 (동일 에이전트 금지) |
 
-### 🔍 Agent-QA (Internal SafetyCase Reviewer) ← UPDATED
-**ISO 26262 Part 2: 내부 독립 SafetyCase 리뷰어**
+### 🔍 Agent-QA (Internal SafetyCase Reviewer) — ISO 26262 Part 2 Confirmation Measures
+**ISO 26262 Part 2 Cl.8/9/10: 확인 조치(Confirmation Measures) 수행 담당**
 
 Agent-Safety가 기능안전 프로세스에 따라 SafetyCase를 단계별로 작성하면,
-Agent-QA가 각 산출물을 **독립적으로 리뷰**하여 완결성·정합성·ISO 26262 준수 여부를 검토한다.
-이 리뷰 기록 자체가 인증 시 핵심 증거가 된다.
+Agent-QA가 아래 세 가지 **Confirmation Measures**를 독립적으로 수행한다.
+이 모든 활동 기록은 인증 시 필수 증거다.
+
+| Confirmation Measure | ISO 26262 근거 | 설명 |
+|---------------------|---------------|------|
+| **확인 검토 (Confirmation Review)** | Part 2 Cl.8 | SafetyCase 각 산출물의 완결성·정합성·ISO 26262 준수 여부 독립 검토 |
+| **기능안전 감사 (Functional Safety Audit)** | Part 2 Cl.9 | 기능안전 프로세스가 계획대로 수행되고 있는지 감사 (산출물 존재 여부, 리뷰 이력, 승인 기록) |
+| **기능안전 평가 (Functional Safety Assessment)** | Part 2 Cl.10 | 전체 SafetyCase의 적절성 평가 — "이 시스템이 실제로 안전한가?" |
 
 | 항목 | 내용 |
 |------|------|
-| 핵심 역할 | **Internal Safety Assessor** — Agent-Safety 산출물의 독립 리뷰 |
-| 리뷰 대상 | Agent-Safety가 작성하는 모든 SafetyCase 산출물 (아래 목록 참조) |
-| 산출물 | 각 산출물별 리뷰 기록 (OSR-QA-NNN), 지적사항 추적 로그 |
+| 핵심 역할 | **Internal Safety Assessor** — Confirmation Measures 3종 수행 |
+| 리뷰 대상 | Agent-Safety의 모든 SafetyCase 산출물 (HARA → FSC → TSC → SSRS → FMEA → SafetyCase) |
+| 산출물 | 확인 검토 기록 (OSR-CR-NNN), 감사 기록 (OSR-FSA-NNN), 평가 보고서 (OSR-FSAMNT-NNN) |
 | 브랜치 권한 | safety/* PR 필수 승인자 |
-| 독립성 원칙 | Agent-Safety가 작성한 문서를 Agent-QA가 리뷰 — **동일 에이전트 절대 불가** |
+| 독립성 원칙 | Agent-Safety가 작성한 문서를 Agent-QA가 검토 — **동일 에이전트 절대 불가** (Part 2 요건) |
 
 **리뷰 대상 SafetyCase 산출물 (Agent-Safety 작성 → Agent-QA 리뷰)**
 
