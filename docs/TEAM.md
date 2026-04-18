@@ -1,6 +1,6 @@
 # OpenSafetyRTOS — 팀 구성 및 R&R
 
-**Version:** 0.2 (V&V / QA 추가)
+**Version:** 0.3 (Agent-QA 역할 명확화 — SafetyCase 내부 리뷰어)
 **기준:** ISO 26262 Part 2 (Functional Safety Management)
 
 ---
@@ -14,11 +14,11 @@
                         └──────┬──────┘
               ┌────────────────┼─────────────────┐
               │                │                 │
-    ┌─────────▼──────┐  ┌──────▼───────┐  ┌─────▼──────────┐
-    │  개발 트랙      │  │  Safety 트랙  │  │  품질 트랙      │
-    └────────────────┘  └──────────────┘  └────────────────┘
-    Agent-Build          Agent-Safety      Agent-QA
-    Agent-Kernel         Agent-Docs        Agent-VnV
+    ┌─────────▼──────┐  ┌──────▼────────────────┐  ┌─────▼──────────┐
+    │  개발 트랙      │  │     Safety 트랙        │  │  품질 트랙      │
+    └────────────────┘  └───────────────────────┘  └────────────────┘
+    Agent-Build          Agent-Safety (작성)         Agent-VnV
+    Agent-Kernel         Agent-Docs   (지원)         Agent-QA (SafetyCase 내부 리뷰어)
 ```
 
 ---
@@ -44,11 +44,13 @@
 ### 🛡️ Agent-Safety (Safety Engineer)
 | 항목 | 내용 |
 |------|------|
-| 책임 | SafetyFunction ASIL-D 레이어, MPU 설정, Mailbox, Watchdog, Fault Detection |
-| 산출물 | kernel/safety/src/*.c, arch/arm-cortex-m/src/mpu.c, safety/ 산출물 |
-| 브랜치 권한 | safety/SSR-* (2명 리뷰 필수 + QA 승인) |
+| 책임 | SafetyFunction ASIL-D 레이어 구현 + **기능안전 프로세스에 따른 SafetyCase 지속 작성** |
+| 코드 산출물 | kernel/safety/src/*.c, arch/arm-cortex-m/src/mpu.c |
+| SafetyCase 산출물 | HARA → FSC → TSC → SSRS → Safety Analysis → SafetyCase (단계별 지속 업데이트) |
+| 브랜치 권한 | safety/SSR-* (Agent-QA 리뷰 필수) |
 | ASIL 책임 | **ASIL-D(D)** — MISRA-C, MC/DC 커버리지 100% 필수 |
-| 특이사항 | 모든 코드 변경에 SSR(Safety Software Requirement) ID 트레이스 필수 |
+| SafetyCase 작성 흐름 | Phase 1: HARA, FSC → Phase 2: TSC → Phase 3: SSRS, FMEA → Phase 4: V&V 결과 통합 → Phase 5: SafetyCase 완성 |
+| 특이사항 | 모든 코드 변경에 SSR ID 트레이스 필수, 각 산출물 완성 즉시 Agent-QA에 리뷰 요청 |
 
 ### 📄 Agent-Docs (Safety Analyst)
 | 항목 | 내용 |
@@ -77,36 +79,50 @@
 |            | - FFI 검증: QM 파티션 격리 테스트 |
 | 독립성 요건 | Agent-Safety가 작성한 코드를 Agent-VnV가 독립적으로 테스트 (동일 에이전트 금지) |
 
-### 🔍 Agent-QA (Quality Assurance / Independent Reviewer) ← NEW
-**ISO 26262 Part 2: 독립 안전 검토 담당**
+### 🔍 Agent-QA (Internal SafetyCase Reviewer) ← UPDATED
+**ISO 26262 Part 2: 내부 독립 SafetyCase 리뷰어**
+
+Agent-Safety가 기능안전 프로세스에 따라 SafetyCase를 단계별로 작성하면,
+Agent-QA가 각 산출물을 **독립적으로 리뷰**하여 완결성·정합성·ISO 26262 준수 여부를 검토한다.
+이 리뷰 기록 자체가 인증 시 핵심 증거가 된다.
 
 | 항목 | 내용 |
 |------|------|
-| 책임 | 코드 리뷰 독립성 보장, MISRA-C 준수 감사, 안전 계획 준수 확인, 리뷰 기록 |
-| 산출물 | QA 리뷰 체크리스트, MISRA 위반 보고서, 독립 리뷰 기록 (인증 증거) |
-| 브랜치 권한 | safety/* PR에 **필수 승인자** (Agent-Safety 제외) |
-| ASIL 책임 | 독립 검증자 역할 — Agent-Safety의 작업을 **독립적으로** 검토 |
-| 핵심 원칙 | **개발자(Agent-Safety)와 리뷰어(Agent-QA)는 반드시 분리** |
-| 활동 범위 | - PR 리뷰: safety/ 및 kernel/safety/ 모든 변경사항 |
-|            | - MISRA-C:2012 Rule 위반 여부 확인 |
-|            | - Safety 요구사항 추적성 (SSR → 코드 → 테스트) 검증 |
-|            | - FMEA 업데이트 적절성 검토 |
-|            | - 설계 변경 시 ADR 작성 여부 확인 |
+| 핵심 역할 | **Internal Safety Assessor** — Agent-Safety 산출물의 독립 리뷰 |
+| 리뷰 대상 | Agent-Safety가 작성하는 모든 SafetyCase 산출물 (아래 목록 참조) |
+| 산출물 | 각 산출물별 리뷰 기록 (OSR-QA-NNN), 지적사항 추적 로그 |
+| 브랜치 권한 | safety/* PR 필수 승인자 |
+| 독립성 원칙 | Agent-Safety가 작성한 문서를 Agent-QA가 리뷰 — **동일 에이전트 절대 불가** |
+
+**리뷰 대상 SafetyCase 산출물 (Agent-Safety 작성 → Agent-QA 리뷰)**
+
+| SafetyCase 산출물 | ISO 26262 근거 | 리뷰 포인트 |
+|-----------------|---------------|------------|
+| HARA (위험원 분석 및 위험도 평가) | Part 3 Cl.15 | 위험원 누락 여부, ASIL 등급 적절성 |
+| FSC (기능안전 개념) | Part 3 Cl.8 | 안전 목표 커버리지, 독립성 확보 |
+| TSC (기술안전 개념) | Part 4 Cl.7 | 시스템 아키텍처와 정합성 |
+| SSRS (SW 안전 요구사항) | Part 6 Cl.7 | 완전성, 검증 가능성, SSR ID 체계 |
+| FMEA / FTA | Part 9 | Failure Mode 누락, 완화조치 적절성 |
+| FFI 분석 | Part 6 Cl.7.4.14 | 파티션 간 간섭 경로 완전성 |
+| 코드 리뷰 (MISRA) | Part 6 Cl.8 | MISRA-C:2012 위반, SSR 트레이스 |
+| V&V 결과 검토 | Part 6 Cl.9 | MC/DC 커버리지, 테스트 완전성 |
+| SafetyCase 최종본 | Part 2 Cl.6 | 논증 완결성, 증거 충분성 |
 
 ---
 
 ## 독립성 매트릭스 (ISO 26262 필수)
 
 ```
-              개발  리뷰  테스트  문서
-Agent-Kernel    O    -      -      -
-Agent-Safety    O    -      -      -
-Agent-VnV       -    -      O      -    ← Safety 코드 테스트 (독립)
-Agent-QA        -    O      -      O    ← Safety 코드 리뷰 (독립)
-Agent-Docs      -    -      -      O
+               코드개발  SafetyCase작성  SafetyCase리뷰  V&V테스트  일반문서
+Agent-Kernel      O           -               -              -          -
+Agent-Safety      O           O               -              -          -   ← 작성자
+Agent-VnV         -           -               -              O          -   ← 독립 테스트
+Agent-QA          -           -               O              -          -   ← 독립 리뷰어
+Agent-Docs        -           지원            -              -          O
 ```
 
-> O = 수행 가능 / - = 해당 모듈에 대해 수행 불가 (독립성 보장)
+> O = 수행 / - = 해당 역할 수행 불가 (독립성 보장)
+> Agent-Safety가 쓴 SafetyCase를 Agent-Safety가 리뷰하는 것은 ISO 26262상 허용되지 않음
 
 ---
 
