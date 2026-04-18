@@ -1,0 +1,33 @@
+# CODEOWNERS — OpenSafetyRTOS
+#
+# Each line is a file pattern followed by one or more owners.
+# Order matters: the last matching pattern takes precedence.
+# More information: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: all files require @core-team review unless overridden below
+*                           @core-team
+
+# Architecture-specific code (MPU configuration, HAL, linker scripts)
+# Changes here affect hardware-enforced partition boundaries
+arch/                       @arch-team
+
+# SafetyFunction partition — ASIL-D(D)
+# ALL changes require @safety-team approval
+# Two-reviewer gate is enforced via branch protection rules
+safety/                     @safety-team
+
+# Safety hooks in the kernel — ASIL-D(D)
+# Changes here affect watchdog, MPU init, and fault escalation paths
+kernel/safety/              @safety-team
+
+# Safety evidence documents
+# Any update to certification artifacts requires @safety-team review
+safety/doc/                 @safety-team
+
+# Architecture design documents and ADRs
+# Changes require both @core-team and @arch-team for cross-cutting decisions
+docs/                       @core-team @arch-team
+
+# CI pipeline — changes could silently disable safety checks
+.github/                    @core-team
+.github/workflows/          @core-team @safety-team
