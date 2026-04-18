@@ -23,6 +23,20 @@
 
 ---
 
+## Safety Manager (필수 — ISO 26262 Part 2 Cl.5.4)
+
+**역할:** PM/PO가 Safety Manager를 겸임한다.
+
+| 책임 항목 | 내용 |
+|----------|------|
+| Safety Plan 수립 및 유지 | SAFETY_PLAN.md 승인 및 갱신 |
+| 기능안전 활동 조율 | Phase별 Safety 활동이 계획대로 수행되는지 확인 |
+| Confirmation Measures 위임 | Agent-QA에게 Cl.8/9/10 수행 위임 및 결과 승인 |
+| 외부 ISA 선정 | Phase 5에서 외부 Independent Safety Assessor 계약 |
+| Safety Case 최종 승인 | 인증 제출 전 Safety Manager 서명 |
+
+---
+
 ## 역할 정의 (R&R)
 
 ### 🔧 Agent-Build (Build Engineer)
@@ -129,6 +143,23 @@ Agent-Docs        -           지원            -              -          O
 
 > O = 수행 / - = 해당 역할 수행 불가 (독립성 보장)
 > Agent-Safety가 쓴 SafetyCase를 Agent-Safety가 리뷰하는 것은 ISO 26262상 허용되지 않음
+
+## 독립성 수준 (Independence Level) — ISO 26262 Part 2 Table 1
+
+ASIL-D는 ISO 26262 Part 2 Table 1에 따라 I3 수준의 독립성을 권장한다.
+
+| 수준 | 정의 | ASIL-D 해당 여부 |
+|------|------|----------------|
+| I1 | 독립적 인원 (같은 팀) | 불충분 |
+| I2 | 독립적 팀 (같은 조직) | 부분 충족 |
+| I3 | 독립적 조직 또는 외부 기관 | **권장** |
+
+**현재 상태 및 계획:**
+- Phase 0~4: Agent-QA가 내부 리뷰어(I2 수준)로 Confirmation Measures 수행
+- Phase 5 (인증 준비): **외부 ISA(Independent Safety Assessor)** 고용하여 I3 달성
+  - 외부 ISA 후보: TÜV SÜD, TÜV Rheinland, SGS, Bureau Veritas
+  - 외부 ISA는 전체 Safety Case를 독립적으로 평가 (Part 2 Cl.10)
+- 이 갭은 인지된 리스크로서 Safety Plan에 기록됨 (OSR-RISK-001)
 
 ---
 

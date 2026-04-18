@@ -164,3 +164,13 @@ The following evidence artifacts are required to support an ISO 26262 ASIL-D com
 ---
 
 *This document is a living artifact. It must be updated as the project progresses through each phase. All changes require Safety Manager approval.*
+
+---
+
+## 리스크 레지스터 (Risk Register)
+
+| ID | 리스크 | 영향 | 가능성 | 완화 계획 |
+|----|------|------|-------|---------|
+| OSR-RISK-001 | Phase 0~4에서 내부 Agent-QA(I2)가 독립성 검토 수행 — ASIL-D I3 요건 미충족 | 인증 기관 지적 가능성 | 중간 | Phase 5에서 외부 ISA 고용하여 I3 달성. 내부 리뷰 기록은 외부 ISA 검토 기반 자료로 활용 |
+| OSR-RISK-002 | FreeRTOS COTS 자격부여 증거 부족 | Part 8 Cl.12 미준수 지적 | 중간 | FreeRTOS 사전 사용 이력 수집, MIT 라이선스 검토, QM(D) 처리 근거 문서화 |
+| OSR-RISK-003 | SEooC Assumption of Use 미충족 통합자 존재 | 시스템 레벨 안전성 저하 | 낮음 | AoU 문서 명확화, Integration Guide 상세 작성, 통합자 체크리스트 제공 |
