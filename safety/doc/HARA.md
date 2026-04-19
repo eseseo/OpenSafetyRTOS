@@ -1,12 +1,12 @@
 # OpenSafetyRTOS — Hazard Analysis and Risk Assessment (HARA)
 
 **Document ID:** OSR-HARA-001
-**Version:** 1.1
-**Status:** Draft — Pending Agent-QA Confirmation Review
-**Date:** 2026-04-18
+**Version:** 1.2
+**Status:** Draft — Minor 정정 반영 (OSR-CR-HARA-002 조건부 승인 조건 C1~C4 해소)
+**Date:** 2026-04-19
 **Author:** Agent-Safety
 **Standard Reference:** ISO 26262 Part 3 Cl.15
-**Review Record:** OSR-CR-HARA-001, OSR-CR-HARA-002 (예정)
+**Review Record:** OSR-CR-HARA-001 (완료), OSR-CR-HARA-002 (조건부 승인 — v1.2 반영으로 C1~C4 해소)
 
 ---
 
@@ -23,7 +23,7 @@
 OpenSafetyRTOS는 ISO 26262 Part 8 Cl.13에 따라 SEooC로 개발된다. 이는 구체적인 차량 기능(브레이크, 조향, 파워트레인 등)을 알지 못하는 상태에서 RTOS 요소 레벨의 위험을 분석한다는 것을 의미한다. 따라서:
 
 - 본 HARA에서의 운영 상황(Operational Situations)은 일반적인 차량용 ECU에 적용 가능한 가정적 상황으로 정의된다.
-- 식별된 안전 목표(SG-01 ~ SG-06)는 OpenSafetyRTOS를 통합하는 시스템이 자신의 시스템 레벨 HARA에서 이를 참조하고 충족 여부를 확인하기 위한 **Assumed Safety Goals**이다.
+- 식별된 안전 목표(SG-01 ~ SG-08)는 OpenSafetyRTOS를 통합하는 시스템이 자신의 시스템 레벨 HARA에서 이를 참조하고 충족 여부를 확인하기 위한 **Assumed Safety Goals**이다.
 - 실제 차량 레벨 안전 목표와의 매핑은 시스템 통합자가 Assumption of Use(AoU) 문서(OSR-AOU-001)와 연계하여 수행해야 한다.
 
 ### 1.3 분석 대상
@@ -193,6 +193,8 @@ OpenSafetyRTOS의 아키텍처는 다음 두 파티션으로 구성된다:
 
 **결정 ASIL: ASIL-D**
 
+> **[보수적 상향 적용 근거 — HARA-NI-001 조치]** ISO 26262 Part 3 Table 4에서 S3×E4×C2의 수치적 결과는 ASIL-C이다. 그러나 본 평가에서는 ASIL-D를 보수적으로 채택한다. 근거: C2 경계 케이스에서 C3 시나리오가 실재한다 — 고속 주행 중 갑작스러운 Safe State Level 2 (Controlled Stop) 전이 시, 운전자가 차량의 급격한 기능 상실을 즉각 인식하고 대응하기 어려운 상황(야간, 우천, 교통 밀집 구간)이 존재하며, 이 경우 C3(통제 어려움)에 해당한다. 또한 오탐 방지와 실제 장애 감지 메커니즘은 동일한 설계 로직에서 비롯되므로 대칭적 ASIL-D 적용이 논리적으로 일관성 있다. SG-04의 ASIL-D 유지는 과잉 충족(over-fulfillment)으로서 ISO 26262 Part 8 Cl.5에 따라 허용된다.
+
 ---
 
 #### H-05: Watchdog kick 실패 (SafetyFunction 데드락)
@@ -333,7 +335,7 @@ H-02 (ASIL-D) ──────────────────────
 H-03 (ASIL-D) ──┐
                  ├──────────────────→ SG-03
 H-08 (ASIL-D) ──┘
-H-04 (ASIL-B) ──────────────────────→ SG-04
+H-04 (ASIL-D) ──────────────────────→ SG-04
 H-07 (ASIL-C) ──────────────────────→ SG-05
 H-06 (ASIL-D) ──────────────────────→ SG-06
 H-05 (ASIL-C) ──────────────────────→ SG-04 (FSR-01-04로 처리; SG-01 중복 포괄)
@@ -341,7 +343,7 @@ H-09 (ASIL-C) ──────────────────────
 H-10 (ASIL-C) ──────────────────────→ SG-08
 ```
 
-**참고:** H-05(ASIL-B)는 SG-01의 하위 시나리오로 볼 수 있으나, Watchdog 관련 특수성(리셋 기반 복구 메커니즘)으로 인해 별도의 기능 안전 요구사항에서 다루어진다.
+**참고:** H-05(ASIL-C)는 SG-01의 하위 시나리오로 볼 수 있으나, Watchdog 관련 특수성(리셋 기반 복구 메커니즘)으로 인해 별도의 기능 안전 요구사항에서 다루어진다.
 
 ---
 
@@ -360,7 +362,7 @@ H-10 (ASIL-C) ──────────────────────
 OpenSafetyRTOS를 차량 시스템에 통합하는 시스템 통합자는 다음을 수행해야 한다:
 
 1. **시스템 레벨 HARA 수행:** 자신의 시스템 기능과 통합 환경을 고려한 독립적 HARA를 수행한다.
-2. **안전 목표 정렬:** 본 HARA에서 도출된 SG-01 ~ SG-06이 시스템 레벨 안전 목표를 충족하는지 확인한다.
+2. **안전 목표 정렬:** 본 HARA에서 도출된 SG-01 ~ SG-08이 시스템 레벨 안전 목표를 충족하는지 확인한다.
 3. **AoU 준수:** 통합자는 OSR-AOU-001(Assumption of Use) 문서를 검토하고, 모든 사용 가정을 충족하는지 확인한다.
 4. **SG-03 파라미터 결정:** 자신의 시스템 FTTI 분석에 기반하여 [X]ms 값을 결정하고 문서화한다.
 5. **추가 위험원 식별:** 통합 환경에서 발생할 수 있는 추가적인 위험원을 식별하고, 필요 시 추가 안전 목표를 도출한다.
@@ -376,6 +378,8 @@ OpenSafetyRTOS를 차량 시스템에 통합하는 시스템 통합자는 다음
 | AoU-03: FTTI 명시 요구 | SG-03 | 통합자는 자신의 FTTI를 OSR-AOU-001에 기재해야 함. OpenSafetyRTOS WCRT 기준값 10ms 대비 충분성 검토 필요 |
 | AoU-04: 부팅 순서 제약 | SG-05 | SafetyFunction BIST 완료 전 차량 기능 활성화 금지 |
 | AoU-05: QM 파티션 격리 책임 | SG-02, SG-06 | QM 영역의 코드/데이터 관리는 통합자 책임 |
+| AoU-04 참조 (클럭 소스 독립성) | SG-07 | SafetyFunction 전용 클럭 소스 제공은 통합자 의무 (AoU-04 참조). QM 파티션으로부터 독립된 하드웨어 타이머 소스를 제공해야 하며, 클럭 이상 감지를 위한 독립 RC 오실레이터 또는 Watchdog 교차 검증 지원 하드웨어 제공 의무 포함 |
+| AoU-08 연계 (전원 보호 설계) | SG-08 | 전원 이상 감지 회로 및 Brown-out 보호는 통합자 하드웨어 설계 의무. SafetyFunction은 Brown-out Detector 인터럽트 인터페이스를 소비하며, 해당 인터럽트는 SafetyFunction 전용으로 할당되어야 함 |
 
 ### 6.4 배포 모델 (Distribution Model)
 
@@ -387,7 +391,7 @@ OpenSafetyRTOS ASIL-D(D)
 └── FreeRTOS QM 파티션      QM(D)     ← FFI 보장 시 안전 요구사항 없음
 ```
 
-이 배포 모델 하에서 SG-01 ~ SG-06은 SafetyFunction 파티션에 할당된다.
+이 배포 모델 하에서 SG-01 ~ SG-08은 SafetyFunction 파티션에 할당된다. SG-07(클럭 보호)과 SG-08(전원 이상 MPU 복구)은 ASIL-C 요구사항으로, OpenSafetyRTOS는 이를 ASIL-D 수준으로 개발하여 과잉 충족(over-fulfillment)한다.
 
 ---
 
@@ -425,6 +429,7 @@ OpenSafetyRTOS ASIL-D(D)
 |-----|------|------|---------|
 | 1.0 | 2026-04-18 | Agent-Safety | 최초 작성 — 8개 위험원 식별, 6개 안전 목표 도출 |
 | 1.1 | 2026-04-19 | Agent-Safety | Agent-QA 확인 검토(OSR-CR-HARA-001) 지적 사항 반영: H-05 E3→E4/ASIL-B→ASIL-C (HARA-ISSUE-001); H-09/H-10 신규 위험원 추가/SG-07/SG-08 도출 (HARA-ISSUE-002); H-04 S2→S3/ASIL-B→ASIL-D/SG-04 ASIL-D 상향 (HARA-ISSUE-003); SG-03 [X]ms → WCRT≤10ms 기준값 구체화 (HARA-ISSUE-004). 수정 사항은 Agent-QA 확인 검토 요청(OSR-CR-HARA-002)을 위해 제출됨. |
+| 1.2 | 2026-04-19 | Agent-Safety | OSR-CR-HARA-002 조건부 승인 조건 C1~C4 오기 정정 반영 (재검토 불필요): HARA-NI-001 — H-04 S3×E4×C2=ASIL-C 수치에 대한 ASIL-D 보수적 상향 근거 명시 추가 (C2 경계 케이스에서 C3 시나리오 존재, 대칭적 ASIL-D 적용 근거); HARA-NI-002 — §5.2 다이어그램 H-04 (ASIL-B)→(ASIL-D) 정정; HARA-NI-003 — §5.2 주석 H-05(ASIL-B)→H-05(ASIL-C) 정정; HARA-NI-004 — §1.2/§6.2/§6.4 SG 범위 SG-01~SG-06→SG-01~SG-08 전면 갱신, §6.3 AoU 연계 표에 SG-07(클럭 소스 독립성) 및 SG-08(전원 Brown-out 보호) 항목 추가. |
 
 ---
 
@@ -434,7 +439,7 @@ OpenSafetyRTOS ASIL-D(D)
 
 **근거 표준:** ISO 26262 Part 2 Cl.8 (Confirmation Measures — Confirmation Review)
 
-**검토 기록:** OSR-CR-HARA-001 (완료), OSR-CR-HARA-002 (Rev 1.1 재검토 예정)
+**검토 기록:** OSR-CR-HARA-001 (완료), OSR-CR-HARA-002 (조건부 승인 — v1.2에서 Minor 조건 C1~C4 해소 완료)
 
 확인 검토 시 Agent-QA는 다음 항목을 검증해야 한다:
 
