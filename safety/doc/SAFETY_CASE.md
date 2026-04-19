@@ -1,9 +1,9 @@
 # OpenSafetyRTOS — Safety Case
 
 **Document ID:** OSR-SC-001
-**Version:** 0.2
+**Version:** 0.3
 **Status:** In Progress
-**Date:** 2026-04-18
+**Date:** 2026-04-19
 **Target Standard:** ISO 26262 Part 2 (Functional Safety Management)
 
 ---
@@ -89,8 +89,8 @@ G1: SafetyFunction이 ASIL-D 요건을 달성하고 Safe State로 전이한다
 
 | 증거 ID | 문서 | 담당 | Phase |
 |---------|------|------|-------|
-| E-G1.1-01 | HARA (위험원 분석 및 위험도 평가) — OSR-HARA-001 ✅ + 확인 검토 OSR-CR-HARA-001 ✅ | Agent-Safety / Agent-QA | Phase 1 🟢 완료 |
-| E-G1.1-01b | FSC (기능안전 개념) — OSR-FSC-001 ✅ + 확인 검토 OSR-CR-FSC-001 ✅ (조건부 승인, 조치 대기) | Agent-Safety / Agent-QA | Phase 1 🟡 진행중 |
+| E-G1.1-01 | HARA (위험원 분석 및 위험도 평가) — OSR-HARA-001 v1.1 ✅ + 재확인 검토 OSR-CR-HARA-002 ✅ | Agent-Safety / Agent-QA | Phase 1 🟢 조건부 승인 (v1.1 — OSR-CR-HARA-002: Major 이슈 전원 해소, Minor 4건 잔존 — v1.2에서 정리 후 최종 승인 전환 가능) |
+| E-G1.1-01b | FSC (기능안전 개념) — OSR-FSC-001 v1.1 ✅ + 재확인 검토 OSR-CR-FSC-002 ✅ | Agent-Safety / Agent-QA | Phase 1 🟡 진행중 (v1.1 — OSR-CR-FSC-002: 기존 Major 4건 해소 확인, 신규 Major 1건 발생 — SG-07/SG-08 FSR 미존재, v1.2 조치 및 Agent-QA 재검토 필요) |
 | E-G1.1-02 | SSRS (소프트웨어 안전 요구사항) — OSR-SSRS-001 | Agent-Safety | Phase 1 🔴 미시작 |
 | E-G1.1-03 | FMEA — `safety/doc/FMEA_TEMPLATE.md` | Agent-Safety | Phase 2~3 |
 | E-G1.1-04 | MISRA-C 정적 분석 결과 | Agent-Safety | Phase 3 |
@@ -124,9 +124,11 @@ Phase가 진행됨에 따라 아래 항목이 채워진다.
 
 | # | 항목 | 담당 | 목표 Phase | 상태 |
 |---|------|------|-----------|------|
-| OP-001 | HARA 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟢 완료 (2026-04-18) — OSR-CR-HARA-001 조건부 승인, 조치 항목 Agent-Safety에 회부 |
+| OP-001 | HARA 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟡 진행중 — OSR-CR-HARA-002 (2026-04-19) 재검토 완료. Major 이슈 전원 해소 확인. Minor 4건 잔존 (오기 정정 성격). v1.2 정리 후 최종 승인 전환 예정. |
+| OP-001a | HARA v1.2 — Minor 이슈(NI-001~004) 정정 및 SG-07/SG-08 AoU 항목 보완 | Agent-Safety | Phase 1 | 🔴 미시작 — OSR-CR-HARA-002 C1~C4 조치 필요 |
 | OP-002 | SSRS (OSR-SSRS-001) 작성 및 승인 | Agent-Safety | Phase 1 | 🔴 미시작 |
-| OP-003 | FSC (OSR-FSC-001) 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟢 완료 (2026-04-18) — OSR-CR-FSC-001 조건부 승인, 조치 항목 Agent-Safety에 회부 |
+| OP-003 | FSC (OSR-FSC-001) 작성 및 Agent-QA 확인 검토 완료 | Agent-Safety / Agent-QA | Phase 1 | 🟡 진행중 — OSR-CR-FSC-002 (2026-04-19) 재검토 완료. 기존 Major 4건 해소 확인. 신규 Major 1건 발생: SG-07/SG-08 FSR 완전 미존재. v1.2에서 FSR-07-xx/FSR-08-xx 섹션 신설 후 Agent-QA 재검토(OSR-CR-FSC-003) 필요. |
+| OP-003b | FSC v1.2 — SG-07 FSR 섹션(§3.7) 및 SG-08 FSR 섹션(§3.8) 신설; Minor 이슈(C3~C6) 해소 | Agent-Safety | Phase 1 | 🔴 미시작 — OSR-CR-FSC-002 C1~C6 조치 필요 |
 | OP-003a | SAFE_STATE_DEFINITION.md 작성 | Agent-Safety | Phase 1 | 🟢 완료 (2026-04-18) |
 | OP-004 | FMEA 완성 | Agent-Safety | Phase 2~3 | 🟡 진행중 |
 | OP-005 | FFI 분석 보고서 (OSR-FFIA-001) 작성 | Agent-Safety | Phase 3 | 🔴 미시작 |
@@ -167,6 +169,7 @@ Phase가 진행됨에 따라 아래 항목이 채워진다.
 |---------|------|--------|---------|
 | 0.1 | 2026-04-18 | Agent-Docs | Safety Case 골격 초안 생성 |
 | 0.2 | 2026-04-18 | Agent-QA | HARA 확인 검토 완료(OSR-CR-HARA-001) 반영. FSC 신규 증거 E-G1.1-01b 추가 및 확인 검토 완료(OSR-CR-FSC-001) 반영. OP-001 🟢, OP-003 🟢 갱신. |
+| 0.3 | 2026-04-19 | Agent-QA | HARA v1.1 재확인 검토(OSR-CR-HARA-002) 결과 반영: Major 이슈 4건 해소 확인, Minor 4건 잔존(v1.2 정리 예정). FSC v1.1 재확인 검토(OSR-CR-FSC-002) 결과 반영: 기존 Major 4건 해소 확인, 신규 Major 1건 발생(SG-07/SG-08 FSR 미존재 — v1.2 조치 필요). E-G1.1-01 조건부 승인 상태로 갱신. E-G1.1-01b 진행중 유지(FSC-NI-001 미해소). OP-001a, OP-003b 신규 추가. |
 
 ---
 
