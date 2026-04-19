@@ -1,187 +1,167 @@
-# OpenSafetyRTOS — 팀 구성 및 R&R
+# OpenSafetyRTOS — Team Structure and Roles
 
-**Version:** 0.3 (Agent-QA 역할 명확화 — SafetyCase 내부 리뷰어)
-**기준:** ISO 26262 Part 2 (Functional Safety Management)
+**Version:** 0.4
+**Reference Standard:** ISO 26262 Part 2 (Functional Safety Management)
 
 ---
 
-## 팀 구조도
+## Team Structure
 
 ```
                         ┌─────────────┐
                         │   PM / PO   │
-                        │  (총괄 관리)  │
+                        │ (Safety Mgr)│
                         └──────┬──────┘
               ┌────────────────┼─────────────────┐
               │                │                 │
     ┌─────────▼──────┐  ┌──────▼────────────────┐  ┌─────▼──────────┐
-    │  개발 트랙      │  │     Safety 트랙        │  │  품질 트랙      │
+    │  Dev Track     │  │   Safety Track         │  │ Quality Track  │
     └────────────────┘  └───────────────────────┘  └────────────────┘
-    Agent-Build          Agent-Safety (작성)         Agent-VnV
-    Agent-Kernel         Agent-Docs   (지원)         Agent-QA (SafetyCase 내부 리뷰어)
+    Agent-Build          Agent-Safety (author)        Agent-VnV
+    Agent-Kernel         Agent-Docs   (support)       Agent-QA (internal reviewer)
 ```
 
 ---
 
-## Safety Manager (필수 — ISO 26262 Part 2 Cl.5.4)
+## Safety Manager (Required — ISO 26262 Part 2 Cl.5.4)
 
-**역할:** PM/PO가 Safety Manager를 겸임한다.
+**Role:** PM/PO acts as Safety Manager.
 
-| 책임 항목 | 내용 |
-|----------|------|
-| Safety Plan 수립 및 유지 | SAFETY_PLAN.md 승인 및 갱신 |
-| 기능안전 활동 조율 | Phase별 Safety 활동이 계획대로 수행되는지 확인 |
-| Confirmation Measures 위임 | Agent-QA에게 Cl.8/9/10 수행 위임 및 결과 승인 |
-| 외부 ISA 선정 | Phase 5에서 외부 Independent Safety Assessor 계약 |
-| Safety Case 최종 승인 | 인증 제출 전 Safety Manager 서명 |
+| Responsibility | Description |
+|---------------|-------------|
+| Safety Plan ownership | Approve and maintain SAFETY_PLAN.md |
+| Safety activity coordination | Verify phase activities are executed per plan |
+| Confirmation Measures delegation | Delegate Cl.8/9/10 to Agent-QA; approve results |
+| External ISA engagement | Contract an external Independent Safety Assessor at Phase 5 |
+| Safety Case final sign-off | Sign SAFETY_CASE.md before certification submission |
 
 ---
 
-## 역할 정의 (R&R)
+## Role Definitions
 
 ### 🔧 Agent-Build (Build Engineer)
-| 항목 | 내용 |
-|------|------|
-| 책임 | CMake 빌드시스템, 폴더구조, git 전략, CI 뼈대, toolchain |
-| 산출물 | CMakeLists.txt 계층, toolchain 파일, .gitignore, CI 스크립트 |
-| 브랜치 권한 | feature/build-*, develop 머지 |
-| ASIL 책임 | QM (빌드 인프라) |
+
+| Item | Description |
+|------|-------------|
+| Responsibility | CMake build system, directory structure, git strategy, CI skeleton, toolchain |
+| Deliverables | CMakeLists.txt hierarchy, toolchain files, .gitignore, CI scripts |
+| Branch access | feature/build-*, develop merge |
+| ASIL responsibility | QM (build infrastructure) |
 
 ### ⚙️ Agent-Kernel (Kernel Engineer)
-| 항목 | 내용 |
-|------|------|
-| 책임 | FreeRTOS QM 파티션 통합, 태스크/스케줄러, HAL 포팅 |
-| 산출물 | kernel/src/*.c, hal/*, arch/arm-cortex-m/src/*, examples/ |
-| 브랜치 권한 | feature/kernel-*, develop 머지 |
-| ASIL 책임 | QM(D) — FreeRTOS 통합 |
+
+| Item | Description |
+|------|-------------|
+| Responsibility | FreeRTOS QM partition integration, task/scheduler, HAL porting |
+| Deliverables | kernel/src/*.c, hal/*, arch/arm-cortex-m/src/*, examples/ |
+| Branch access | feature/kernel-*, develop merge |
+| ASIL responsibility | QM(D) — FreeRTOS integration |
 
 ### 🛡️ Agent-Safety (Safety Engineer)
-| 항목 | 내용 |
-|------|------|
-| 책임 | SafetyFunction ASIL-D 레이어 구현 + **기능안전 프로세스에 따른 SafetyCase 지속 작성** |
-| 코드 산출물 | kernel/safety/src/*.c, arch/arm-cortex-m/src/mpu.c |
-| SafetyCase 산출물 | HARA → FSC → TSC → SSRS → Safety Analysis → SafetyCase (단계별 지속 업데이트) |
-| 브랜치 권한 | safety/SSR-* (Agent-QA 리뷰 필수) |
-| ASIL 책임 | **ASIL-D(D)** — MISRA-C, MC/DC 커버리지 100% 필수 |
-| SafetyCase 작성 흐름 | Phase 1: HARA, FSC → Phase 2: TSC → Phase 3: SSRS, FMEA → Phase 4: V&V 결과 통합 → Phase 5: SafetyCase 완성 |
-| 특이사항 | 모든 코드 변경에 SSR ID 트레이스 필수, 각 산출물 완성 즉시 Agent-QA에 리뷰 요청 |
+
+| Item | Description |
+|------|-------------|
+| Responsibility | SafetyFunction ASIL-D layer implementation + **ISO 26262 SafetyCase authoring** |
+| Code deliverables | kernel/safety/src/*.c, arch/arm-cortex-m/src/mpu.c |
+| SafetyCase deliverables | HARA → FSC → TSC → SSRS → Safety Analysis → SafetyCase (continuous updates by phase) |
+| Branch access | safety/SSR-* (Agent-QA review mandatory) |
+| ASIL responsibility | **ASIL-D(D)** — MISRA-C:2012 and MC/DC 100% coverage mandatory |
+| SafetyCase flow | Phase 1: HARA, FSC → Phase 2: TSC → Phase 3: SSRS, FMEA → Phase 4: V&V evidence → Phase 5: SafetyCase completion |
+| Special requirement | All code changes must include SSR traceability tag (e.g., `/* SSR-015-MBX */`); submit each deliverable to Agent-QA immediately |
 
 ### 📄 Agent-Docs (Safety Analyst)
-| 항목 | 내용 |
-|------|------|
-| 책임 | ADR, FMEA, Safety Plan, 아키텍처 문서, 인증 증거 문서 |
-| 산출물 | docs/ADR-*.md, safety/doc/*, ARCHITECTURE.md |
-| 브랜치 권한 | docs/*, safety/doc/* |
-| ASIL 책임 | 문서 품질 — ASIL-D 개발 증거 작성 |
+
+| Item | Description |
+|------|-------------|
+| Responsibility | ADRs, FMEA, Safety Plan, architecture documents, certification evidence |
+| Deliverables | docs/ADR-*.md, safety/doc/*, ARCHITECTURE.md |
+| Branch access | docs/*, safety/doc/* |
+| ASIL responsibility | Document quality — ASIL-D development evidence |
 
 ---
 
-## 신규 역할 (V&V / QA 트랙)
+## V&V / QA Track
 
-### 🧪 Agent-VnV (V&V Engineer) ← NEW
-**ISO 26262 Part 4/6: Verification & Validation 담당**
+### 🧪 Agent-VnV (V&V Engineer) — ISO 26262 Part 4/6
 
-| 항목 | 내용 |
-|------|------|
-| 책임 | 단위 테스트(Unit Test), 통합 테스트(Integration Test), 테스트 계획/결과 문서 |
-| 산출물 | tests/unit/*, tests/integration/*, safety/tests/*, V&V 계획서, 테스트 결과 리포트 |
-| 브랜치 권한 | test/*, validation/* |
-| ASIL 책임 | SafetyFunction 테스트는 **MC/DC 커버리지 100%** 필수 |
-| 핵심 활동 | - Mailbox 검증 알고리즘 단위 테스트 (CRC fail / stale / range 각 케이스) |
-|            | - MPU 설정 검증 테스트 (QM→ASIL-D 접근 시 HardFault 발생 확인) |
-|            | - Watchdog kick/timeout 테스트 |
-|            | - FFI 검증: QM 파티션 격리 테스트 |
-| 독립성 요건 | Agent-Safety가 작성한 코드를 Agent-VnV가 독립적으로 테스트 (동일 에이전트 금지) |
+| Item | Description |
+|------|-------------|
+| Responsibility | Unit testing, integration testing, test plan and result documentation |
+| Deliverables | tests/unit/*, tests/integration/*, safety/tests/*, V&V plans, test result reports |
+| Branch access | test/*, validation/* |
+| ASIL responsibility | SafetyFunction tests require **MC/DC 100% coverage** |
+| Key activities | Mailbox validation unit tests (CRC fail / stale / range); MPU access → HardFault tests; Watchdog kick/timeout tests; FFI isolation tests |
+| Independence | Agent-VnV tests code written by Agent-Safety — **same agent prohibited** (Part 6) |
 
 ### 🔍 Agent-QA (Internal SafetyCase Reviewer) — ISO 26262 Part 2 Confirmation Measures
-**ISO 26262 Part 2 Cl.8/9/10: 확인 조치(Confirmation Measures) 수행 담당**
 
-Agent-Safety가 기능안전 프로세스에 따라 SafetyCase를 단계별로 작성하면,
-Agent-QA가 아래 세 가지 **Confirmation Measures**를 독립적으로 수행한다.
-이 모든 활동 기록은 인증 시 필수 증거다.
+Agent-Safety authors SafetyCase documents phase by phase. Agent-QA independently performs all three **Confirmation Measures** per ISO 26262 Part 2.
 
-| Confirmation Measure | ISO 26262 근거 | 설명 |
-|---------------------|---------------|------|
-| **확인 검토 (Confirmation Review)** | Part 2 Cl.8 | SafetyCase 각 산출물의 완결성·정합성·ISO 26262 준수 여부 독립 검토 |
-| **기능안전 감사 (Functional Safety Audit)** | Part 2 Cl.9 | 기능안전 프로세스가 계획대로 수행되고 있는지 감사 (산출물 존재 여부, 리뷰 이력, 승인 기록) |
-| **기능안전 평가 (Functional Safety Assessment)** | Part 2 Cl.10 | 전체 SafetyCase의 적절성 평가 — "이 시스템이 실제로 안전한가?" |
+| Confirmation Measure | ISO 26262 Basis | Description |
+|--------------------|-----------------|-------------|
+| **Confirmation Review** | Part 2 Cl.8 | Independent review of each SafetyCase deliverable for completeness, consistency, and ISO 26262 compliance |
+| **Functional Safety Audit** | Part 2 Cl.9 | Audit that safety processes are followed per Safety Plan (deliverable existence, review history, approvals) |
+| **Functional Safety Assessment** | Part 2 Cl.10 | Overall SafetyCase adequacy — "Is this system actually safe?" |
 
-| 항목 | 내용 |
-|------|------|
-| 핵심 역할 | **Internal Safety Assessor** — Confirmation Measures 3종 수행 |
-| 리뷰 대상 | Agent-Safety의 모든 SafetyCase 산출물 (HARA → FSC → TSC → SSRS → FMEA → SafetyCase) |
-| 산출물 | 확인 검토 기록 (OSR-CR-NNN), 감사 기록 (OSR-FSA-NNN), 평가 보고서 (OSR-FSAMNT-NNN) |
-| 브랜치 권한 | safety/* PR 필수 승인자 |
-| 독립성 원칙 | Agent-Safety가 작성한 문서를 Agent-QA가 검토 — **동일 에이전트 절대 불가** (Part 2 요건) |
-
-**리뷰 대상 SafetyCase 산출물 (Agent-Safety 작성 → Agent-QA 리뷰)**
-
-| SafetyCase 산출물 | ISO 26262 근거 | 리뷰 포인트 |
-|-----------------|---------------|------------|
-| HARA (위험원 분석 및 위험도 평가) | Part 3 Cl.15 | 위험원 누락 여부, ASIL 등급 적절성 |
-| FSC (기능안전 개념) | Part 3 Cl.8 | 안전 목표 커버리지, 독립성 확보 |
-| TSC (기술안전 개념) | Part 4 Cl.7 | 시스템 아키텍처와 정합성 |
-| SSRS (SW 안전 요구사항) | Part 6 Cl.7 | 완전성, 검증 가능성, SSR ID 체계 |
-| FMEA / FTA | Part 9 | Failure Mode 누락, 완화조치 적절성 |
-| FFI 분석 | Part 6 Cl.7.4.14 | 파티션 간 간섭 경로 완전성 |
-| 코드 리뷰 (MISRA) | Part 6 Cl.8 | MISRA-C:2012 위반, SSR 트레이스 |
-| V&V 결과 검토 | Part 6 Cl.9 | MC/DC 커버리지, 테스트 완전성 |
-| SafetyCase 최종본 | Part 2 Cl.6 | 논증 완결성, 증거 충분성 |
+| Item | Description |
+|------|-------------|
+| Core role | **Internal Safety Assessor** — all three Confirmation Measures |
+| Review scope | All SafetyCase deliverables by Agent-Safety (HARA → FSC → TSC → SSRS → FMEA → SafetyCase) |
+| Deliverables | Confirmation Review records (OSR-CR-NNN), Audit records (OSR-FSA-NNN), Assessment reports (OSR-FSAMNT-NNN) |
+| Branch access | Mandatory approver on all safety/* PRs |
+| Independence | Agent-QA reviews Agent-Safety documents — **same agent strictly prohibited** (Part 2) |
 
 ---
 
-## 독립성 매트릭스 (ISO 26262 필수)
+## Independence Matrix (ISO 26262 Mandatory)
 
 ```
-               코드개발  SafetyCase작성  SafetyCase리뷰  V&V테스트  일반문서
-Agent-Kernel      O           -               -              -          -
-Agent-Safety      O           O               -              -          -   ← 작성자
-Agent-VnV         -           -               -              O          -   ← 독립 테스트
-Agent-QA          -           -               O              -          -   ← 독립 리뷰어
-Agent-Docs        -           지원            -              -          O
+               Code Dev  SafetyCase Author  SafetyCase Review  V&V Test  Docs
+Agent-Kernel      O            -                  -               -        -
+Agent-Safety      O            O                  -               -        -   ← author
+Agent-VnV         -            -                  -               O        -   ← independent tester
+Agent-QA          -            -                  O               -        -   ← independent reviewer
+Agent-Docs        -          support              -               -        O
 ```
 
-> O = 수행 / - = 해당 역할 수행 불가 (독립성 보장)
-> Agent-Safety가 쓴 SafetyCase를 Agent-Safety가 리뷰하는 것은 ISO 26262상 허용되지 않음
-
-## 독립성 수준 (Independence Level) — ISO 26262 Part 2 Table 1
-
-ASIL-D는 ISO 26262 Part 2 Table 1에 따라 I3 수준의 독립성을 권장한다.
-
-| 수준 | 정의 | ASIL-D 해당 여부 |
-|------|------|----------------|
-| I1 | 독립적 인원 (같은 팀) | 불충분 |
-| I2 | 독립적 팀 (같은 조직) | 부분 충족 |
-| I3 | 독립적 조직 또는 외부 기관 | **권장** |
-
-**현재 상태 및 계획:**
-- Phase 0~4: Agent-QA가 내부 리뷰어(I2 수준)로 Confirmation Measures 수행
-- Phase 5 (인증 준비): **외부 ISA(Independent Safety Assessor)** 고용하여 I3 달성
-  - 외부 ISA 후보: TÜV SÜD, TÜV Rheinland, SGS, Bureau Veritas
-  - 외부 ISA는 전체 Safety Case를 독립적으로 평가 (Part 2 Cl.10)
-- 이 갭은 인지된 리스크로서 Safety Plan에 기록됨 (OSR-RISK-001)
+> O = performs / - = must not perform (independence requirement)
 
 ---
 
-## 브랜치 보호 규칙 요약
+## Independence Levels — ISO 26262 Part 2 Table 1
 
-| 브랜치 패턴 | 필수 리뷰어 | 추가 조건 |
-|------------|------------|----------|
-| `main` | PM 승인 | 태그 + 릴리즈 노트 |
-| `develop` | Agent-Build or Agent-Kernel | CI 통과 |
-| `safety/*` | **Agent-QA (필수)** + 1명 추가 | MISRA 리포트 첨부, MC/DC 결과 첨부 |
-| `feature/*` | 1명 | CI 통과 |
-| `test/*` | Agent-VnV | 커버리지 리포트 첨부 |
+| Level | Definition | ASIL-D Status |
+|-------|-----------|---------------|
+| I1 | Independent person (same team) | Insufficient |
+| I2 | Independent team (same organization) | Partially satisfies |
+| I3 | Independent organization or external body | **Recommended for ASIL-D** |
+
+**Plan:**
+- Phase 0–4: Agent-QA as internal reviewer (I2)
+- Phase 5: External ISA (TÜV SÜD, TÜV Rheinland, SGS, or Bureau Veritas) for I3
+- Gap documented in Safety Plan as OSR-RISK-001
 
 ---
 
-## Phase별 에이전트 투입 계획
+## Branch Protection Rules
 
-| Phase | 주도 에이전트 | 지원 에이전트 |
-|-------|-------------|-------------|
-| Phase 0: 셋업 | Agent-Build, Agent-Docs | - |
-| Phase 1: 아키텍처 | Agent-Safety, Agent-Docs | Agent-QA (ADR 리뷰) |
-| Phase 2: 커널 | Agent-Kernel, Agent-Build | Agent-VnV (단위 테스트) |
-| Phase 3: Safety Function | Agent-Safety | **Agent-QA, Agent-VnV** (독립 투입) |
-| Phase 4: 통합/테스트 | Agent-VnV | Agent-QA (리뷰), Agent-Safety (결함 수정) |
-| Phase 5: 인증 준비 | Agent-Docs, Agent-QA | 전체 |
+| Branch Pattern | Required Reviewers | Additional Conditions |
+|---------------|-------------------|----------------------|
+| `main` | PM approval | Tag + release notes |
+| `develop` | Agent-Build or Agent-Kernel | CI passing |
+| `safety/*` | **Agent-QA (mandatory)** + 1 additional | MISRA report attached, MC/DC results attached |
+| `feature/*` | 1 reviewer | CI passing |
+| `test/*` | Agent-VnV | Coverage report attached |
+
+---
+
+## Phase-by-Phase Agent Deployment
+
+| Phase | Lead Agent(s) | Support Agent(s) |
+|-------|--------------|-----------------|
+| Phase 0: Setup | Agent-Build, Agent-Docs | — |
+| Phase 1: Architecture & Safety Analysis | Agent-Safety, Agent-Docs | Agent-QA (review) |
+| Phase 2: Kernel | Agent-Kernel, Agent-Build | Agent-VnV (unit tests) |
+| Phase 3: SafetyFunction implementation | Agent-Safety | **Agent-QA, Agent-VnV** (independent) |
+| Phase 4: Integration & Testing | Agent-VnV | Agent-QA (review), Agent-Safety (defect fix) |
+| Phase 5: Certification prep | Agent-Docs, Agent-QA | All agents + External ISA |

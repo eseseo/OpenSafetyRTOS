@@ -1,4 +1,4 @@
-# ADR-004 — 부트 시퀀스: SafetyFunction 선행 초기화
+# ADR-004: Boot Sequence — SafetyFunction Pre-Initialization
 
 **Document ID:** ADR-004
 **Version:** 1.0
@@ -6,225 +6,227 @@
 **Date:** 2026-04-18
 **Author:** Agent-Safety
 **Deciders:** Safety Manager, Architecture Lead
-**Standard Reference:** ISO 26262 Part 4 Cl.8, Part 6 Cl.8 (소프트웨어 단위 설계)
+**Reference Standard:** ISO 26262 Part 4 Cl.8, Part 6 Cl.8 (Software Unit Design)
 
 ---
 
-## 1. 상태
+## 1. Status
 
-**Accepted** — Phase 1 구현의 필수 전제조건. 이 결정을 번복하려면 별도 ADR 및 Safety Manager 승인이 필요하다.
+**Accepted** — Mandatory prerequisite for Phase 1 implementation. Reversing this decision requires a new ADR and Safety Manager approval.
 
 ---
 
-## 2. 컨텍스트
+## 2. Context
 
-### 2.1 문제 정의
+### 2.1 Problem Definition
 
-OpenSafetyRTOS는 FreeRTOS(QM 파티션)와 SafetyFunction(ASIL-D 파티션)의 Decomposition 구조를 채택한다(ADR-001). 두 파티션 간 FFI(Freedom From Interference)는 MPU(Memory Protection Unit)를 통한 하드웨어 메모리 보호로 달성된다(ADR-002).
+OpenSafetyRTOS uses the ASIL Decomposition architecture (ADR-001): FreeRTOS as QM(D) partition, SafetyFunction as ASIL-D(D) partition. FFI between the two partitions is enforced in hardware via the ARM MPU (ADR-002).
 
-**핵심 문제:** FreeRTOS가 SafetyFunction보다 먼저, 또는 동시에 초기화된다면, MPU가 구성되기 전에 QM 코드가 실행되는 **시간 창(Time Window)**이 발생한다. 이 창에서 QM 코드는 아직 보호되지 않은 ASIL-D 메모리 영역에 접근할 수 있다.
+**The critical problem:** If FreeRTOS initializes before — or simultaneously with — SafetyFunction, QM code executes during a time window where the MPU has not yet been configured. During this window, QM code can access ASIL-D memory regions without restriction.
 
 ```
-[위험한 시나리오 — MPU 미구성 상태에서 FreeRTOS 실행]
+[Dangerous scenario — FreeRTOS executing before MPU is configured]
 
 Reset Vector
     │
-    ├─ FreeRTOS_Init() 시작         ← QM 코드 실행 시작
-    │       ├─ Heap 초기화
-    │       └─ 태스크 생성          ← MPU 없음\! ASIL-D 메모리 접근 가능
+    ├─ FreeRTOS_Init() begins        ← QM code starts executing
+    │       ├─ Heap initialization
+    │       └─ Task creation         ← No MPU! ASIL-D memory is accessible
     │
-    └─ SafetyFunction_PreInit()     ← 이 시점에서야 MPU 구성
-            └─ MPU 설정             ← 너무 늦음
+    └─ SafetyFunction_PreInit()      ← MPU configured only now
+            └─ MPU setup             ← Too late
 ```
 
-이 시나리오는 **ASIL-D FFI 요구사항 위반**이며, ISO 26262 Part 9의 ASIL Decomposition 유효성을 무효화한다.
+This scenario is an **ASIL-D FFI violation** and invalidates the ISO 26262 Part 9 ASIL Decomposition argument.
 
-### 2.2 영향 범위
+### 2.2 Scope of Impact
 
-- ARM Cortex-M4/M7 모든 타겟 플랫폼
-- startup 코드 (startup_stm32xxxx.s 또는 동등한 벡터 테이블 / 리셋 핸들러)
-- 링커 스크립트 (SafetyFunction 스택의 ASIL-D 영역 배치)
-- 통합자의 BSP(Board Support Package) 수정 범위
+- All ARM Cortex-M4/M7 target platforms
+- Startup code (startup_stmXXXX.s or equivalent reset handler)
+- Linker script (SafetyFunction stack placement in ASIL-D region)
+- Integrator BSP (Board Support Package) modification requirements
 
 ---
 
-## 3. 결정
+## 3. Decision
 
-**SafetyFunction은 FreeRTOS보다 반드시 먼저 초기화된다.**
+**SafetyFunction must initialize before FreeRTOS — without exception.**
 
-Reset Vector에서 가장 먼저 호출되는 함수는 `SafetyFunction_PreInit()`이며, 이 함수가 완료된 후에만 FreeRTOS 초기화가 허용된다. 이를 통해 MPU는 FreeRTOS의 첫 번째 명령어 실행 전부터 활성화된다.
+The first function called from the Reset Vector is `SafetyFunction_PreInit()`. Only after it returns successfully may FreeRTOS initialization proceed. This guarantees the MPU is active and enforced before FreeRTOS executes its first instruction.
 
 ---
 
-## 4. 부트 시퀀스 상세 정의
+## 4. Boot Sequence Definition
 
-### 4.1 전체 시퀀스
+### 4.1 Complete Sequence
 
 ```
-Reset Vector (리셋 핸들러 진입점)
+Reset Vector
     │
     ▼
 SafetyFunction_PreInit()                        [ASIL-D]
     │
-    ├─ Step 1: 스택 포인터 초기화
-    │           SafetyFunction 전용 스택을 ASIL-D 메모리 영역에 설정
-    │           (링커 스크립트로 .sf_stack 섹션이 ASIL-D 영역에 배치됨을 보장)
+    ├─ Step 1: Stack pointer initialization
+    │           Set SafetyFunction stack in ASIL-D memory region
+    │           (Linker script places .sf_stack section in ASIL-D region)
     │
-    ├─ Step 2: MPU 구성 (ASIL-D Region 보호 최우선)
-    │           ├─ ASIL-D Region: SafetyFunction만 R/W, QM NO ACCESS
+    ├─ Step 2: MPU configuration — ASIL-D protection first
+    │           ├─ ASIL-D Region: SafetyFunction R/W, QM NO ACCESS
     │           ├─ QM Region: QM R/W, SafetyFunction R/O
-    │           ├─ Mailbox Region: QM W/O, SafetyFunction R/O
-    │           └─ MPU_CTRL.ENABLE = 1 (MPU 활성화)
-    │           [이 시점 이후 QM의 ASIL-D 메모리 접근 시 HardFault 발생]
+    │           ├─ Mailbox Region: QM W, SafetyFunction R/O
+    │           └─ MPU_CTRL.ENABLE = 1 (MPU activated)
+    │           [From this point: any QM access to ASIL-D → HardFault]
     │
-    ├─ Step 3: 하드웨어 Watchdog 초기화
-    │           ├─ IWDG(Independent Watchdog) 활성화
-    │           ├─ 타임아웃 = WATCHDOG_TIMEOUT_MS (기본값: 100ms)
-    │           └─ 이 시점 이후 SafetyFunction이 주기적으로 kick하지 않으면 MCU 리셋
+    ├─ Step 3: Hardware Watchdog initialization
+    │           ├─ IWDG (Independent Watchdog) activated
+    │           ├─ Timeout = WATCHDOG_TIMEOUT_MS (default: 100 ms)
+    │           └─ From this point: missed kick → MCU reset
     │
-    ├─ Step 4: 부트 자가진단 (Boot-time Self-test)
-    │           ├─ 4a. ROM CRC 검증: Flash 영역 CRC32 계산 및 참조값 비교
-    │           ├─ 4b. RAM March 테스트: ASIL-D 스택/데이터 영역 March-C 알고리즘
-    │           ├─ 4c. CPU 레지스터 테스트: 범용 레지스터 0/1 패턴 테스트
-    │           ├─ 4d. MPU 설정 검증: 방금 설정한 MPU 레지스터 값 재확인
-    │           └─ [자가진단 실패 시] → Watchdog kick 중단 → Level 3 리셋
+    ├─ Step 4: Boot-time Self-Test (POST)
+    │           ├─ 4a. ROM CRC check: CRC32 over Flash; compare to reference value
+    │           ├─ 4b. RAM March test: March-C algorithm on ASIL-D stack/data regions
+    │           ├─ 4c. CPU register test: 0x00000000 / 0xFFFFFFFF pattern write-read
+    │           ├─ 4d. MPU register verification: read back all MPU regions, compare to expected
+    │           └─ [Any self-test failure] → stop Watchdog kick → Level 3 reset
     │
-    └─ Step 5: SafetyFunction_Init() 완료 선언
-                └─ g_safety_init_complete = SAFETY_INIT_MAGIC (0xSAFE_A55A)
-                   [원자적 쓰기 — ASIL-D Region 내 변수]
+    └─ Step 5: Declare SafetyFunction_PreInit() complete
+                └─ g_safety_init_complete = SAFETY_INIT_MAGIC (0xSAFEA55A)
+                   [Atomic write to ASIL-D region variable]
 
-    ↓ [SafetyFunction_PreInit() 반환]
+    ↓ [SafetyFunction_PreInit() returns]
 
 FreeRTOS_Init()                                 [QM]
     │
-    ├─ Step 6: 힙 초기화
-    │           └─ QM Region 내에서만 힙 할당 (MPU 이미 활성 → ASIL-D 접근 시 HardFault)
+    ├─ Step 6: Heap initialization
+    │           └─ Heap allocated within QM Region only
+    │              (MPU already active → any ASIL-D access → HardFault)
     │
-    ├─ Step 7: FreeRTOS 태스크 생성
-    │           └─ 모든 태스크 스택은 QM Region 내에 배치
+    ├─ Step 7: FreeRTOS task creation
+    │           └─ All task stacks placed within QM Region
     │
-    └─ Step 8: 스케줄러 시작 (vTaskStartScheduler())
+    └─ Step 8: Start scheduler (vTaskStartScheduler())
 
-    ↓ [두 파티션 정상 동작]
+    ↓ [Both partitions running]
 
 Normal Operation
-    ├─ SafetyFunction 감시 태스크 (최고 우선순위, 주기적 Watchdog kick)
-    └─ FreeRTOS QM 태스크 (일반 동작, MPU 보호 하에 실행)
+    ├─ SafetyFunction monitor task (highest priority, periodic Watchdog kick)
+    └─ FreeRTOS QM tasks (normal operation, under MPU protection)
 ```
 
-### 4.2 부트 자가진단 상세 요구사항
+### 4.2 Boot Self-Test Requirements
 
-| 자가진단 항목       | 알고리즘/방법                          | 합격 기준                         | 실패 시 처리          |
-|-------------------|--------------------------------------|----------------------------------|--------------------|
-| ROM CRC 검증       | CRC32 (CCITT 다항식)                  | 계산값 == Flash에 저장된 참조 CRC  | Level 3 (Watchdog) |
-| RAM March 테스트   | March-C 알고리즘 (IEC 61508 권고)     | 모든 셀 읽기/쓰기 패턴 통과       | Level 3 (Watchdog) |
-| CPU 레지스터 테스트 | 0x00000000 / 0xFFFFFFFF 패턴 기록/검증| 쓴 값 == 읽은 값                  | Level 3 (Watchdog) |
-| MPU 레지스터 검증  | 예상 설정값과 실제 레지스터 비교        | 전체 MPU 영역 설정 일치           | Level 3 (Watchdog) |
-| 스택 포인터 검증   | SP 레지스터가 ASIL-D 스택 영역 내 확인 | STACK_BASE ≤ SP ≤ STACK_TOP      | Level 3 (Watchdog) |
+| Self-Test | Algorithm | Pass Criterion | Failure Action |
+|-----------|-----------|----------------|----------------|
+| ROM CRC check | CRC32 (CCITT polynomial) | Computed == stored reference CRC | Level 3 (Watchdog reset) |
+| RAM March test | March-C algorithm (IEC 61508 recommended) | All cell read/write patterns pass | Level 3 (Watchdog reset) |
+| CPU register test | 0x00000000 / 0xFFFFFFFF pattern write-read | Written value == read back value | Level 3 (Watchdog reset) |
+| MPU register verify | Read back all MPU regions, compare to expected config | All regions match expected | Level 3 (Watchdog reset) |
+| Stack pointer check | SP register within ASIL-D stack region | STACK_BASE ≤ SP ≤ STACK_TOP | Level 3 (Watchdog reset) |
 
-**참고:** 자가진단은 FreeRTOS 스케줄러 시작 전에 완료되어야 한다. 자가진단 실행 중에도 Watchdog은 동작 중이므로, 각 자가진단 단계 사이에 Watchdog kick을 수행하여 자가진단 시간이 WATCHDOG_TIMEOUT_MS를 초과하지 않도록 구현해야 한다.
+**Note:** Self-tests run before the FreeRTOS scheduler starts. The Watchdog is active throughout — each self-test step must kick the Watchdog to ensure total self-test time stays within `WATCHDOG_TIMEOUT_MS`.
 
-### 4.3 리셋 원인 추적
+### 4.3 Reset Cause Tracking
 
-Level 3 리셋 이후 부팅 시, 리셋 원인을 반드시 기록하고 통합자에게 보고해야 한다.
+On any reboot, the reset cause must be classified, logged, and reported to the integrator:
 
 ```c
-/* 부팅 시 리셋 원인 분류 (예시: STM32 기준) */
 typedef enum {
-    RESET_CAUSE_POWER_ON     = 0x01,  /* 정상 전원 인가 */
-    RESET_CAUSE_WATCHDOG_HW  = 0x02,  /* 하드웨어 Watchdog (Level 3 — SafetyFunction 결함) */
-    RESET_CAUSE_WATCHDOG_SW  = 0x03,  /* 소프트웨어 Watchdog (Level 3 — 의도적) */
-    RESET_CAUSE_POWER_FAULT  = 0x04,  /* 전원 이상 */
-    RESET_CAUSE_BOOT_SELFTEST= 0x05,  /* 부트 자가진단 실패 */
-    RESET_CAUSE_EXTERNAL     = 0x06,  /* 외부 리셋 핀 */
-    RESET_CAUSE_UNKNOWN      = 0xFF,  /* 원인 미상 */
+    RESET_CAUSE_POWER_ON      = 0x01,  /* Normal power-on reset */
+    RESET_CAUSE_WATCHDOG_HW   = 0x02,  /* HW Watchdog — Level 3 (SafetyFunction fault) */
+    RESET_CAUSE_WATCHDOG_SW   = 0x03,  /* SW-triggered Watchdog — Level 3 (intentional) */
+    RESET_CAUSE_POWER_FAULT   = 0x04,  /* Power anomaly / Brown-out */
+    RESET_CAUSE_BOOT_SELFTEST = 0x05,  /* Boot self-test failure */
+    RESET_CAUSE_EXTERNAL      = 0x06,  /* External reset pin */
+    RESET_CAUSE_UNKNOWN       = 0xFF,  /* Unknown cause */
 } reset_cause_t;
 
-reset_cause_t safety_get_reset_cause(void);  /* 부팅 시 RCC_CSR 레지스터 분석 */
+reset_cause_t safety_get_reset_cause(void);  /* Reads and classifies RCC_CSR at boot */
 ```
 
 ---
 
-## 5. 거부된 대안
+## 5. Rejected Alternatives
 
-### 5.1 대안 A: 동시 초기화 (Simultaneous Init)
+### Alternative A: Simultaneous Initialization
 
-**설명:** FreeRTOS와 SafetyFunction을 병렬로 초기화하되, 각자 자신의 영역만 초기화.
+**Description:** Initialize FreeRTOS and SafetyFunction in parallel, each within their own region.
 
-**거부 이유:** 이 방식은 여전히 MPU 구성 완료 전에 FreeRTOS 코드가 실행되는 시간 창을 허용한다. 또한 초기화 순서의 레이스 컨디션이 발생할 수 있으며, ASIL-D 개발에서 이런 불확실성은 허용되지 않는다.
+**Rejected because:** QM code still executes before MPU configuration is complete. Race conditions in initialization order exist — unacceptable under ASIL-D. Static analysis cannot exhaustively exclude `pvPortMalloc()` from touching ASIL-D memory ranges before the MPU is active.
 
-**구체적 위험:** FreeRTOS 힙 초기화 중 `pvPortMalloc()`이 MPU 구성 전에 ASIL-D 메모리 범위를 침범할 가능성을 정적 분석으로 완전히 배제하기 어렵다.
+### Alternative B: FreeRTOS First, SafetyFunction as a Task
 
-### 5.2 대안 B: FreeRTOS 먼저, SafetyFunction 나중
+**Description:** Start FreeRTOS first; initialize SafetyFunction as one of its tasks.
 
-**설명:** FreeRTOS를 먼저 시작하고, SafetyFunction을 FreeRTOS 태스크 중 하나로 초기화.
+**Rejected because:** There is no MPU before FreeRTOS's first task runs — violating ADR-002's foundational premise. Running SafetyFunction as a FreeRTOS task also creates a scheduler dependency that breaks FFI independence.
 
-**거부 이유:** FreeRTOS 첫 번째 태스크가 실행되기 전까지 MPU가 없는 상태이며, 이는 ADR-002의 근본 전제를 위반한다. 또한 SafetyFunction을 FreeRTOS 태스크로 실행하면 FreeRTOS 스케줄러에 대한 의존성이 발생하여 FFI가 깨진다.
+### Alternative C: SafetyFunction on a Separate MCU
 
-### 5.3 대안 C: 별도 MCU에서 SafetyFunction 실행
+**Description:** Run SafetyFunction on a dedicated secondary MCU.
 
-**설명:** SafetyFunction을 별도 MCU(보조 MCU)에서 실행.
-
-**거부 이유:** 비용 및 복잡도 증가. OpenSafetyRTOS의 목표는 단일 MCU에서 Decomposition으로 ASIL-D를 달성하는 것이다. 별도 MCU 전략은 다른 제품 계층에서 고려할 수 있다.
+**Rejected because:** Added cost and complexity. OpenSafetyRTOS targets single-MCU Cortex-M ASIL-D via decomposition. Multi-MCU architectures may be addressed in a future ADR variant.
 
 ---
 
-## 6. AoU(Assumption of Use) 영향
+## 6. Assumption of Use Impact
 
-### AoU-09: 스타트업 코드 수정 금지 (신규)
+### AoU-09: No FreeRTOS Call Before SafetyFunction_PreInit() (New)
 
 **ID:** AoU-09
-**제목:** SafetyFunction_PreInit() 이전 FreeRTOS 호출 금지
-**내용:**
-시스템 통합자는 Reset Handler(리셋 벡터 진입점)에서 `SafetyFunction_PreInit()`이 `FreeRTOS_Init()` 또는 `vTaskStartScheduler()`보다 먼저 호출됨을 보장해야 한다.
+**Title:** Integrator must ensure `SafetyFunction_PreInit()` is called before any FreeRTOS initialization
 
-금지 행위:
-- Reset Handler에서 FreeRTOS API를 `SafetyFunction_PreInit()` 이전에 호출
-- `SafetyFunction_PreInit()`을 FreeRTOS 태스크 내에서 호출
-- MPU 설정 함수를 SafetyFunction 외부에서 직접 호출하여 SafetyFunction의 MPU 설정 덮어쓰기
-- 부트 자가진단을 건너뛰는 컴파일 옵션 사용 (디버그 빌드라도 자가진단 생략 금지)
+**Requirement:**
+The integrator's Reset Handler must call `SafetyFunction_PreInit()` before `FreeRTOS_Init()` or `vTaskStartScheduler()`. No exceptions.
 
-**검증 방법:** 링커 맵 파일 분석 + 부트 시퀀스 코드 리뷰 (독립 검증자 수행)
+**Prohibited actions:**
+- Calling any FreeRTOS API before `SafetyFunction_PreInit()` returns
+- Calling `SafetyFunction_PreInit()` from within a FreeRTOS task
+- Calling MPU configuration functions outside SafetyFunction to override its MPU setup
+- Using any compile option that skips boot self-tests (even in debug builds)
 
-**근거:** 이 AoU를 위반하면 ADR-001, ADR-002의 FFI 보장이 무효화되어 ASIL-D 인증을 받을 수 없다.
+**Verification:** Linker map analysis + boot sequence code review by an independent reviewer.
 
----
-
-## 7. 구현 파일 참조
-
-| 파일 경로                                      | 내용                              |
-|-----------------------------------------------|----------------------------------|
-| `arch/arm-cortex-m/startup_safety.s`          | Reset Handler — SafetyFunction_PreInit() 호출 순서 |
-| `kernel/safety/safety_preinit.c`              | SafetyFunction_PreInit() 구현    |
-| `kernel/safety/safety_selftest.c`             | 부트 자가진단 알고리즘            |
-| `kernel/safety/safety_watchdog.c`             | IWDG 초기화 및 kick 관리         |
-| `arch/arm-cortex-m/mpu_config.c`              | MPU 영역 설정 구현               |
-| `docs/ADR-002-mpu-partition-strategy.md`      | MPU 영역 정의 상세               |
-| `safety/doc/SAFE_STATE_DEFINITION.md`         | Safe State Level 3 리셋 상세     |
+**Rationale:** Violating this AoU invalidates the FFI guarantee established by ADR-001 and ADR-002, making ASIL-D certification impossible.
 
 ---
 
-## 8. 결정의 결과 (Consequences)
+## 7. Implementation File References
 
-**긍정적:**
-- MPU는 FreeRTOS의 첫 번째 명령어 실행 전부터 활성화 → FFI 시간적 완결성(Temporal Completeness) 달성
-- Watchdog은 FreeRTOS 초기화 전부터 동작 → 초기화 단계 hang 감지 가능
-- 부트 자가진단이 FreeRTOS 실행 전 통과 → 코드/메모리 무결성 보장 후 실행
-- 리셋 원인 추적으로 현장(Field) 결함 분석 가능
-
-**부정적 / 트레이드오프:**
-- 부트 시간 증가: 자가진단으로 약 수십~수백 ms 추가 (자가진단 알고리즘 최적화 필요)
-- 통합자 스타트업 코드 수정 의무 (AoU-09) → 기존 BSP 사용 시 수정 작업 필요
-- 자가진단 알고리즘 자체도 ASIL-D 요구사항(MC/DC 커버리지)으로 개발해야 함
-
----
-
-## 9. 검토 이력
-
-| 날짜       | 버전 | 작성자        | 변경 내용              |
-|-----------|------|--------------|----------------------|
-| 2026-04-18 | 1.0  | Agent-Safety | 초안 작성 및 승인      |
+| File Path | Content |
+|-----------|---------|
+| `arch/arm-cortex-m/startup_safety.s` | Reset Handler — SafetyFunction_PreInit() call order |
+| `kernel/safety/src/safety_init.c` | SafetyFunction_PreInit() implementation |
+| `kernel/safety/src/boot_selftest.c` | Boot self-test algorithms |
+| `kernel/safety/src/watchdog.c` | IWDG initialization and kick management |
+| `arch/arm-cortex-m/src/mpu.c` | MPU region configuration |
+| `docs/ADR-002-mpu-partition-strategy.md` | MPU region assignment details |
+| `safety/doc/SAFE_STATE_DEFINITION.md` | Safe State Level 3 reset details |
 
 ---
 
-*본 ADR은 ISO 26262 Part 4 Cl.8(안전 관련 소프트웨어 아키텍처 설계) 요구사항에 따라 설계 결정 사항을 문서화한 것이다. 구현 전 Safety Manager 및 독립 검증자의 검토가 필요하다.*
+## 8. Consequences
+
+**(+)** MPU is active before FreeRTOS executes its first instruction → FFI temporal completeness achieved
+
+**(+)** Watchdog is active before FreeRTOS initialization → initialization-phase hangs are detected
+
+**(+)** Boot self-tests pass before any QM code runs → code and memory integrity verified before execution
+
+**(+)** Reset cause tracking enables field fault analysis
+
+**(−)** Boot time increases: self-tests add tens to hundreds of milliseconds (algorithm optimization required)
+
+**(−)** Integrators must modify their startup code to satisfy AoU-09 — existing BSP users need a porting step
+
+**(−)** Self-test code itself must be developed under ASIL-D requirements (MC/DC coverage, MISRA-C)
+
+---
+
+## 9. Revision History
+
+| Date | Version | Author | Changes |
+|------|---------|--------|---------|
+| 2026-04-18 | 1.0 | Agent-Safety | Initial draft and approval |
+
+---
+
+*This ADR documents a design decision per ISO 26262 Part 4 Cl.8 (Safety-related software architectural design). Independent review by Safety Manager and V&V engineer required before implementation.*
