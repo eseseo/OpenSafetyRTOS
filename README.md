@@ -205,7 +205,7 @@ QA review records: `safety/doc/reviews/OSR-CR-*.md`
 > **Note:** Build system and hardware bring-up are in active development.
 
 ```bash
-git clone https://github.com/YOUR_ORG/opensafetyrtos.git
+git clone https://github.com/eseseo/opensafetyrtos.git
 cd opensafetyrtos
 
 # Configure for ARM Cortex-M4

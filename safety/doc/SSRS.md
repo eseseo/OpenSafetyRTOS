@@ -3,8 +3,8 @@
 | 항목 | 내용 |
 |------|------|
 | 문서 ID | OSR-SSRS-001 |
-| 버전 | 1.0.0 |
-| 상태 | Draft |
+| 버전 | 1.1.0 |
+| 상태 | Draft (v1.1 — OSR-CR-SSRS-001 C1/NI 조치) |
 | 작성일 | 2026-04-19 |
 | 작성자 | Agent-Safety |
 | 참조 표준 | ISO 26262 Part 6 Cl.7 (Software Safety Requirements) |
@@ -78,40 +78,47 @@ SSR-NNN-[구성요소약어]
 ### 2.2 MPU 관련 SSR (FSR-01-02, FSR-02-01, FSR-02-02, FSR-02-03, FSR-02-04 분해)
 
 #### SSR-004-MPU: MPU 초기화 순서
-- **요구사항**: `safety_mpu_init()` 함수는 `SafetyFunction_PreInit()` 내부에서 가장 먼저 호출되어야 한다. `safety_mpu_init()` 반환 전에 다음 MPU 리전이 모두 활성화 상태이어야 한다:
-  - Region 0: ASIL-D Code (Read/Execute, Privileged Only)
-  - Region 1: ASIL-D Data (Read/Write, Privileged Only)
-  - Region 2: QM Code/Data (Read/Write, Unprivileged 접근 허용)
-  - Region 3: QM→Safety Mailbox (QM: Read/Write, Safety: Read Only)
-  - Region 4: Peripheral — Safety Watchdog 레지스터 (Privileged Only)
-  - Region 5: Peripheral — Safety Timer 레지스터 (Privileged Only)
-  - Region 6: Stack Guard — SafetyFunction 스택 하단 32B (No Access)
-  - Region 7: Stack Guard — FreeRTOS 스택 상단 32B (No Access)
+- **요구사항**: `safety_mpu_init()` 함수는 `SafetyFunction_PreInit()` 내부에서 가장 먼저 호출되어야 한다. `safety_mpu_init()` 반환 전에 다음 MPU 리전이 모두 활성화 상태이어야 한다 (ADR-002 §"MPU Region Assignment Strategy" 기준 — 권위 문서):
+
+  | 리전 번호 | 이름 | 기본 주소 | SafetyFunction 접근 | QM 접근 | 비고 |
+  |----------|------|---------|-------------------|--------|------|
+  | **Region 0** | Default background | 0x00000000 | Privileged RW | **No Access** | 전체 4 GB Deny-all; 명시적 리전 미매핑 주소 → 모두 Fault. Fail-secure 기본값 필수 |
+  | Region 1 | ASIL-D Code (Flash) | 링커 스크립트 | Execute + Read (Privileged) | No Access | SafetyFunction 실행 코드 |
+  | Region 2 | ASIL-D Data (SRAM) | 링커 스크립트 | Read + Write (Privileged) | No Access | SafetyFunction 변수, BSS |
+  | Region 3 | ASIL-D Stack | 링커 스크립트 | Read + Write (Privileged) | No Access | SafetyFunction 태스크 스택 |
+  | Region 4 | QM Region (Flash + SRAM) | 링커 스크립트 | Read only (Privileged) | Read + Write + Execute | FreeRTOS 코드 및 데이터 |
+  | Region 5 | QM→Safety Mailbox | 링커 스크립트 (256 B min) | Read only | Read + Write | 전용 통신 채널 |
+  | Region 6 | Safety Stack Guard | 링커 스크립트 (32 B min, 정렬) | No Access | No Access | QM 스택 오버플로 → MemManage Fault |
+  | Region 7 | Peripheral / Device | 디바이스별 | Privileged only | 디바이스별 제한 | NVIC, SysTick, Watchdog, Safety Timer 레지스터 포함 |
+
+  > **Region 0 (Deny-all background) 필수 근거**: ARM Cortex-M4 MPU는 리전 번호가 높을수록 낮은 번호를 오버라이드한다. Region 0를 4 GB Deny-all로 설정하면 Region 1~7에 명시적으로 허용되지 않은 모든 주소에 대한 접근이 자동으로 Fault 처리된다. 이 리전 없이는 미매핑 주소(예: 예비 SRAM, Flash 경계 이후)가 무제한 접근 가능한 취약 구간으로 남아 FFI 요구사항을 위반한다.
+
 - **근거 FSR**: FSR-02-01, FSR-01-02
 - **ASIL**: D
-- **검증 방법**: 단위 테스트 — `safety_mpu_init()` 호출 후 MPU_CTRL 레지스터 ENABLE 비트 확인; 통합 테스트 — 각 리전 접근 시도 시 예상 동작 확인
+- **검증 방법**: 단위 테스트 — `safety_mpu_init()` 호출 후 MPU_CTRL 레지스터 ENABLE 비트 확인; 각 리전 MPU_RBAR/MPU_RASR 읽기 검증 (`safety_mpu_integrity_check()` 호출); 통합 테스트 — 각 리전 접근 시도 시 예상 동작 확인 (Agent-VnV 수행)
 - **구현 위치**: `arch/arm-cortex-m/src/mpu.c`, `safety_mpu_init()`
+- **변경 이력**: v1.1 — OSR-CR-SSRS-001 ISSUE-001 C1 조치: ADR-002 §MPU Region Assignment와 일치하도록 리전 번호 전면 재정렬; Region 0 Deny-all background 복원
 
 #### SSR-005-MPU: ASIL-D 영역 QM 접근 시 HardFault
-- **요구사항**: QM 컨텍스트(Unprivileged 모드)에서 ASIL-D 메모리 영역(Region 0, Region 1)에 읽기 또는 쓰기를 시도할 경우 MPU 예외(MemManage Fault 또는 HardFault)가 발생해야 한다. 해당 예외 핸들러는 반드시 Safe State Level 3 전이 함수를 호출해야 한다.
+- **요구사항**: QM 컨텍스트(Unprivileged 모드)에서 ASIL-D 메모리 영역(Region 1: ASIL-D Code, Region 2: ASIL-D Data, Region 3: ASIL-D Stack)에 읽기 또는 쓰기를 시도할 경우 MPU 예외(MemManage Fault 또는 HardFault)가 발생해야 한다. 해당 예외 핸들러는 반드시 Safe State Level 3 전이 함수를 호출해야 한다.
 - **근거 FSR**: FSR-02-01
 - **ASIL**: D
 - **검증 방법**: 통합 테스트 — QM 태스크에서 ASIL-D 메모리 주소 쓰기 시도 → MemManage Fault 발생 → Safe State Level 3 전이 확인 (Agent-VnV 수행)
 - **구현 위치**: `arch/arm-cortex-m/src/mpu.c`; 예외 핸들러: `arch/arm-cortex-m/src/fault_handlers.c`
 
 #### SSR-006-MPU: IVT ASIL-D 영역 배치
-- **요구사항**: 인터럽트 벡터 테이블(IVT)은 링커 스크립트에 의해 ASIL-D Code 리전(Region 0) 내에 배치되어야 한다. SCB->VTOR 레지스터 값은 SafetyFunction 초기화 완료 후 ASIL-D Code 리전 기준 주소와 일치해야 한다.
+- **요구사항**: 인터럽트 벡터 테이블(IVT)은 링커 스크립트에 의해 ASIL-D Code 리전(Region 1) 내에 배치되어야 한다. SCB->VTOR 레지스터 값은 SafetyFunction 초기화 완료 후 ASIL-D Code 리전(Region 1) 기준 주소와 일치해야 한다.
 - **근거 FSR**: FSR-02-02
 - **ASIL**: D
 - **검증 방법**: 빌드 검증 — 링커 맵에서 `.isr_vector` 섹션 위치 확인; 단위 테스트 — SCB->VTOR 값 검증
 - **구현 위치**: 링커 스크립트 `arch/arm-cortex-m/ldscripts/cortex-m4.ld`
 
 #### SSR-007-MPU: Safety Timer 레지스터 MPU 보호
-- **요구사항**: SafetyFunction 전용 타이머의 레지스터 공간은 MPU Region 5(Peripheral — Safety Timer)로 설정되어야 하며, Unprivileged(QM) 접근 시 MemManage Fault가 발생해야 한다.
+- **요구사항**: SafetyFunction 전용 타이머의 레지스터 공간은 MPU Region 7(Peripheral / Device)의 서브 리전으로 포함되어야 하며, Unprivileged(QM) 접근 시 MemManage Fault가 발생해야 한다. Region 7 내 Safety Timer 레지스터 주소 범위는 `mpu_config.h`의 `MPU_PERIPHERAL_SAFE_TIMER_BASE` 상수로 정의되고, `safety_mpu_integrity_check()` 검증 대상에 포함되어야 한다.
 - **근거 FSR**: FSR-02-03, FSR-07-01
 - **ASIL**: D
 - **검증 방법**: 통합 테스트 — QM 태스크에서 Safety Timer 레지스터 주소 접근 시 MemManage Fault 발생 확인
-- **구현 위치**: `arch/arm-cortex-m/src/mpu.c` (Region 5 설정)
+- **구현 위치**: `arch/arm-cortex-m/src/mpu.c` (Region 7 Peripheral 설정, Safety Timer 서브 리전)
 
 #### SSR-008-MPU: DMA 채널 접근 제어
 - **요구사항**: QM 파티션에 할당된 DMA 채널의 소스/목적지 주소로 ASIL-D 메모리 리전 내 주소가 사용되어서는 안 된다. `safety_dma_validate_transfer()` 함수는 DMA 전송 요청 시 소스/목적지 주소가 ASIL-D 리전에 해당하지 않는지 검사하고, 해당 시 `SAFETY_ERR_DMA_VIOLATION`을 반환해야 한다.
@@ -210,8 +217,9 @@ SSR-NNN-[구성요소약어]
 - **요구사항**: `safety_mailbox_receive()` 함수가 `SAFETY_OK` 이외의 값을 반환한 경우, 호출자(SafetyFunction 로직)는 출력 버퍼(`*out`)의 내용을 안전 로직에 사용해서는 안 된다. 함수 계약: 반환값이 `SAFETY_OK`가 아닌 경우 `*out` 버퍼 내용은 정의되지 않은(undefined) 상태이다.
 - **근거 FSR**: FSR-06-03
 - **ASIL**: D
-- **검증 방법**: 코드 리뷰 — 모든 `safety_mailbox_receive()` 호출 지점에서 반환값 확인 코드 존재 여부 검사
-- **구현 위치**: `safety_mailbox_receive()` 계약 문서 + 호출 코드 리뷰
+- **검증 방법**: 코드 리뷰 — 모든 `safety_mailbox_receive()` 호출 지점에서 반환값 확인 코드 존재 여부 검사; 단위 테스트 — `safety_mailbox_receive()` 반환값이 `SAFETY_OK`가 아닐 때 `*out` 버퍼 내용을 읽는 경로가 실행되지 않음을 경계 조건 포함 테스트로 확인 (Agent-VnV 수행, MC/DC 100%)
+- **구현 위치**: `safety_mailbox_receive()` 계약 문서 + 호출 코드 리뷰; 단위 테스트: `tests/unit/test_mailbox_contract.c`
+- **변경 이력**: v1.1 — OSR-CR-SSRS-001 NI-001 조치: 코드 리뷰 단독 검증에서 단위 테스트 병행으로 검증 방법 강화
 
 #### SSR-019-MBX: 연속 검증 실패 에스컬레이션
 - **요구사항**: SafetyFunction은 각 Mailbox 슬롯별 연속 검증 실패 횟수를 `mailbox_fail_count[]` 카운터로 추적해야 한다. 카운터가 `MAILBOX_FAIL_MAX`(기본값 N=3)에 도달하면 `safety_enter_level2()`를 호출해야 한다. 단일 실패(1회)는 Level 1 전이 후 카운터 증가만 수행하며, 다음 사이클에서 수신 재시도한다. 성공 시 카운터는 0으로 초기화된다.
@@ -376,11 +384,17 @@ ASIL-D SSR 구현 시 다음 MISRA-C:2012 규칙이 필수 적용된다:
 | 범주 | 규칙 | 내용 |
 |------|------|------|
 | 포인터 | Rule 18.2 | NULL 역참조 이전 NULL 검사 필수 |
+| 포인터 형변환 | **Rule 11.3** | 포인터를 다른 오브젝트 타입으로 캐스팅 금지 (예: `uint32_t *` → `uint8_t *`); MPU 레지스터 접근 시 `volatile` 포인터를 통한 직접 접근만 허용 |
 | 정수 연산 | Rule 10.1~10.4 | 묵시적 형변환 금지 |
+| 데드 코드 | **Rule 2.2** | 도달 불가능한 코드(dead code) 금지; 컴파일러 최적화로 제거되지 않음을 정적 분석 도구로 확인 |
+| 외부 연결 | **Rule 8.4** | 외부 연결을 가지는 함수/변수는 선언 헤더와 정의 파일이 모두 존재해야 하며 헤더에 명시적 프로토타입 필수 |
+| 식 부작용 | **Rule 13.2** | 식 평가 순서에 의존하는 부작용(side effect) 포함 식 금지; 특히 `safety_mailbox_receive()` 내 CRC/타임스탬프/범위 검증 조건식에서 함수 호출 부작용 분리 필수 |
 | 분기 | Rule 15.5 | 단일 종료점 원칙 (함수당 return 1개) |
 | 루프 | Rule 14.2 | for 루프 카운터 변수는 루프 내에서만 수정 |
 | 함수 | Rule 17.7 | 모든 함수 반환값은 사용되거나 명시적으로 무시 |
 | 전처리기 | Rule 20.1~20.14 | 헤더 가드 필수, 재귀 매크로 금지 |
+
+> **v1.1 추가 (NI-002 조치)**: Rule 11.3, 2.2, 8.4, 13.2 추가. ASIL-D SafetyFunction 코드에서 특히 중요한 규칙으로, MPU 레지스터 접근(11.3), 정적 분석 기반 데드 코드 제거(2.2), 함수 선언/정의 일관성(8.4), Mailbox 검증 체인 내 부작용 없는 조건식(13.2) 준수를 보장한다.
 
 ---
 
@@ -419,6 +433,7 @@ ASIL-D SSR 구현 시 다음 MISRA-C:2012 규칙이 필수 적용된다:
 | 버전 | 날짜 | 변경 내용 | 작성자 |
 |------|------|---------|--------|
 | 1.0.0 | 2026-04-19 | 최초 작성 (Draft) — OSR-FSC-001 v1.2 최종 승인(OSR-CR-FSC-003) 기반, FSR 27개 → SSR 27개 분해 | Agent-Safety |
+| 1.1.0 | 2026-04-19 | OSR-CR-SSRS-001 조치: ISSUE-001 C1 (SSR-004 MPU 리전 번호 ADR-002 일치 재정렬, Region 0 Deny-all background 복원), NI-001 (SSR-018 단위 테스트 추가), NI-002 (MISRA-C Rule 11.3/2.2/8.4/13.2 추가); SSR-005/006/007 리전 번호 참조 정정 | Agent-Safety |
 
 ---
 
