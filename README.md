@@ -79,13 +79,13 @@ SafeRTOS achieves ASIL-D by completely rewriting FreeRTOS — breaking ecosystem
 ### Memory Partitioning
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────--────┐
 │ Region                │ SafetyFunction Access │ FreeRTOS(QM) Access│
-├──────────────────────────────────────────────────────────────────┤
+├─────────────────────────────────────────────────────────────--─────┤
 │ ASIL-D Region         │ Read / Write          │ NO ACCESS          │
 │ QM Region             │ Read Only             │ Read / Write       │
 │ QM→Safety Mailbox     │ Read Only             │ Read / Write       │
-└──────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────--─────┘
 ```
 
 QM cannot write to ASIL-D memory — this is enforced in hardware by the ARM MPU. Any violation triggers a MemManage Fault, which transitions the system to Safe State Level 3 (Emergency Reset).
