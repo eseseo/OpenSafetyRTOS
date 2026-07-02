@@ -1,9 +1,9 @@
 # ADR-001: Adopt ISO 26262 Part 9 ASIL Decomposition Strategy
 
-**Date:** 2026-04-18
+**Date:** 2026-04-18 (revised 2026-07-02)
 **Status:** Accepted
 **Deciders:** Project Architecture Team
-**Related:** ADR-002 (MPU Partition Strategy), ARCHITECTURE.md §2
+**Related:** ADR-002 (MPU Partition Strategy), ADR-005 (Privilege Model), ARCHITECTURE.md §2
 
 ---
 
@@ -17,21 +17,29 @@ To build an open-source RTOS that satisfies ISO 26262 ASIL-D, we need a strategy
 
 **Adopt the ISO 26262 Part 9 ASIL Decomposition strategy.**
 
+Per ISO 26262-9:2018 Cl.5, the system-level ASIL-D safety requirement is decomposed into two redundant requirements allocated to sufficiently independent elements:
+
 ```
-FreeRTOS        QM(D)      — Standard RTOS functions: scheduling, IPC, drivers
-SafetyFunction  ASIL-D(D)  — Safety monitoring, MPU enforcement, fault handling
-──────────────────────────────────────────────────────────────────────────────
-OpenSafetyRTOS  ASIL-D     — System-level safety goal
+Safety requirement (ASIL D)
+ ├── Monitoring requirement          → SafetyFunction   ASIL D(D)
+ │     detect unsafe behaviour of the intended function and enforce
+ │     the safe state (watchdog, MPU integrity, fault handling)
+ └── Intended-function requirement   → FreeRTOS         QM(D)
+       provide standard RTOS services (scheduling, IPC, drivers)
+─────────────────────────────────────────────────────────────────────
+ OpenSafetyRTOS system-level safety goal: ASIL D (fail-safe)
 ```
 
-- **FreeRTOS** operates as the QM(D) partition. It is used as a COTS component under ISO 26262 Part 8 Cl.12 qualification with pre-existing use evidence.
-- **SafetyFunction** operates as the ASIL-D(D) partition. It monitors the system, enforces hardware memory protection, manages the watchdog, and handles all fault responses.
-- The combination satisfies the system-level ASIL-D requirement through demonstrated FFI.
+- **FreeRTOS** carries the intended-function requirement at QM(D). It is used as a COTS component under ISO 26262 Part 8 Cl.12 qualification with pre-existing use evidence.
+- **SafetyFunction** carries the monitoring requirement at ASIL D(D). It monitors the system, owns the hardware memory protection configuration, manages the watchdog, and handles all fault responses. The safe-state enforcement (detect → controlled stop / reset) must be achievable by SafetyFunction **alone**, independent of FreeRTOS behaving correctly.
+- The decomposition is valid **only if** sufficient independence — Freedom From Interference per ISO 26262-9:2018 Cl.6 — is demonstrated between the two elements (spatial: ADR-002/ADR-005; temporal: dedicated safety timer ISR, ADR-005 §D1(c); communication: mailbox validation).
+
+**Scope of the resulting claim (important):** this architecture yields a *fail-safe monitor* system (E-Gas-style monitoring architecture). ASIL-D-rated behaviour is the detection of faults and enforcement of the safe state. FreeRTOS's RTOS services themselves remain QM: ASIL-D application logic must not rely on FreeRTOS scheduling/IPC as a safety mechanism, and fail-operational goals are out of scope. This differs from a fully ASIL-D-certified services RTOS (e.g., SafeRTOS), which provides ASIL-rated kernel services.
 
 ### Cross-Partition Communication Rules
 
-1. QM → ASIL-D direct write: **prohibited** — enforced in hardware by the ARM MPU
-2. When QM must pass data to SafetyFunction: **Mailbox pattern only**
+1. QM → ASIL-D direct write: **prohibited** — enforced in hardware by the ARM MPU against unprivileged QM tasks (AoU-10), and detected within one safety cycle for privileged-kernel faults (ADR-005)
+2. When QM must pass data to SafetyFunction: **Mailbox pattern only** (AoU-03)
 3. On every Mailbox receive, SafetyFunction performs mandatory 3-stage validation: CRC-32 → timestamp freshness → value range check
 
 ---

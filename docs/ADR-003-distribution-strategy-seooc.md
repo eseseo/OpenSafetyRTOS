@@ -1,9 +1,9 @@
 # ADR-003: Distribution Strategy — SEooC (Safety Element out of Context)
 
-**Date:** 2026-04-18
+**Date:** 2026-04-18 (revised 2026-07-02)
 **Status:** Accepted
 **Deciders:** PM/PO
-**Reference Standard:** ISO 26262 Part 8 Cl.13
+**Reference Standard:** ISO 26262-10:2018 Cl.9 (SEooC)
 
 ---
 
@@ -21,22 +21,23 @@ Three options were evaluated:
 
 ## Decision
 
-**Develop and distribute the SafetyFunction layer as a SEooC (Safety Element out of Context) per ISO 26262 Part 8 Cl.13.**
+**Develop and distribute the SafetyFunction layer as a SEooC (Safety Element out of Context) per ISO 26262-10:2018 Cl.9.**
 
 ```
 OpenSafetyRTOS distribution package
-├── kernel/freertos/        Source (MIT License)          — FreeRTOS as-is
+├── kernel/freertos/        Source (MIT License)          — FreeRTOS as-is (planned; not yet vendored)
 ├── kernel/safety/          Source (Apache 2.0)           — SafetyFunction SEooC
-├── safety/doc/             Certification evidence (CC BY 4.0) — HARA, FSC, SSRS, etc.
-├── docs/ASSUMPTION_OF_USE.md   SEooC Assumptions of Use
-└── docs/INTEGRATION_GUIDE.md   Integrator guide
+├── arch/arm-cortex-m/      Source (Apache 2.0)           — MPU + fault handling port layer
+├── safety/doc/             Safety evidence (CC BY 4.0)   — HARA, FSC, SSRS, AOU, etc.
+│   └── AOU.md              Canonical AoU registry (OSR-AOU-001)
+└── docs/INTEGRATION_GUIDE.md   Integrator guide (planned — Phase 2)
 ```
 
 ---
 
 ## SEooC Concept
 
-Per ISO 26262 Part 8 Cl.13, SafetyFunction is a safety element developed and validated independently of any specific end-system context. Integrators can embed it in their own systems provided they satisfy the Assumptions of Use (AoU).
+Per ISO 26262-10:2018 Cl.9, SafetyFunction is a safety element developed and validated independently of any specific end-system context, on the basis of *assumed* requirements and an assumed context. Integrators can embed it in their own systems provided they satisfy the Assumptions of Use (AoU).
 
 ```
 OpenSafetyRTOS (SEooC development)          Integrator System
@@ -71,16 +72,21 @@ The primary target of OpenSafetyRTOS is ARM Cortex-M based automotive ECUs — t
 
 ## Assumptions of Use (Summary)
 
-Integrators must satisfy all AoU items. Full details: `docs/ASSUMPTION_OF_USE.md`.
+Integrators must satisfy all AoU items. The single authoritative source of AoU IDs and definitions is the canonical registry **`safety/doc/AOU.md` (OSR-AOU-001)**; the summary below is informative only.
 
-| ID | Assumption | Description |
-|----|-----------|-------------|
-| AoU-01 | MPU initialization | Call `safety_mpu_init()` first during system boot — before any other initialization |
-| AoU-02 | Task priority | SafetyFunction task must hold the highest priority in the system |
-| AoU-03 | Mailbox exclusive use | All QM→SafetyFunction data transfers must use the Mailbox API only |
-| AoU-04 | Clock / Timer | Provide a dedicated independent hardware timer source to SafetyFunction |
-| AoU-05 | Watchdog | Connect an external hardware Watchdog to SafetyFunction |
-| AoU-06 | Compiler | Use a MISRA-C:2012 compliant compiler at the optimization level specified in the integration guide |
+| ID | Assumption |
+|----|-----------|
+| AoU-01 | Boot order: `safety_boot()` executes before any QM/FreeRTOS code (ADR-004) |
+| AoU-02 | External independent hardware watchdog connected to SafetyFunction |
+| AoU-03 | All QM→SafetyFunction data transfers use the Mailbox API exclusively |
+| AoU-04 | Dedicated independent hardware timer for SafetyFunction; its ISR above all QM interrupts (ADR-005 §D1(c)) |
+| AoU-05 | Independent clock source for the safety timer + hardware clock supervision (CSS) enabled |
+| AoU-06 | MISRA-C:2012 compliant toolchain at the qualified optimization level |
+| AoU-07 | No bus master (DMA etc.) can write the ASIL-D region — the MPU does not gate DMA (ADR-005 §D1(f)) |
+| AoU-08 | Power supervision (BOD/PVD) configured per SAFE_STATE_DEFINITION.md |
+| AoU-09 | Integrator implements the Level 2 recovery procedure (no automatic recovery) |
+| AoU-10 | QM tasks run unprivileged via the FreeRTOS ARM_CM4_MPU port (ADR-005 §D1(a)) |
+| AoU-11 | Safe State callbacks registered at initialization (see OSR-AOU-001) |
 
 ---
 
@@ -98,7 +104,7 @@ Integrators must satisfy all AoU items. Full details: `docs/ASSUMPTION_OF_USE.md
 
 **(+)** Open-source philosophy fully preserved — source code and all certification evidence publicly available
 
-**(+)** ISO 26262 SEooC path is a recognized certification route (Part 8 Cl.13) with existing precedent
+**(+)** ISO 26262 SEooC path is a recognized development route (ISO 26262-10:2018 Cl.9) with existing precedent
 
 **(+)** Optimized for Cortex-M embedded automotive ECUs — no hypervisor overhead
 
