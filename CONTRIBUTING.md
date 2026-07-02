@@ -96,7 +96,7 @@ This track covers all changes to the `safety/` and `kernel/safety/` directories.
 
 ### SafetyFunction Partition (`safety/`, `kernel/safety/`)
 
-- **Language standard:** C11 (compiled with `-std=c11 -pedantic`)
+- **Language standard:** C99 (compiled with `-std=c99 -pedantic`, MISRA-C:2012 base standard)
 - **Compliance:** MISRA-C:2012 all mandatory and required rules
 - **Forbidden constructs:**
   - Dynamic memory allocation

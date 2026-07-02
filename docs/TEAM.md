@@ -1,6 +1,6 @@
 # OpenSafetyRTOS — Team Structure and Roles
 
-**Version:** 0.4
+**Version:** 0.5
 **Reference Standard:** ISO 26262 Part 2 (Functional Safety Management)
 
 ---
@@ -93,9 +93,14 @@
 | Key activities | Mailbox validation unit tests (CRC fail / stale / range); MPU access → HardFault tests; Watchdog kick/timeout tests; FFI isolation tests |
 | Independence | Agent-VnV tests code written by Agent-Safety — **same agent prohibited** (Part 6) |
 
-### 🔍 Agent-QA (Internal SafetyCase Reviewer) — ISO 26262 Part 2 Confirmation Measures
+### 🔍 Agent-QA (Internal SafetyCase Reviewer) — Verification-Support Measures
 
-Agent-Safety authors SafetyCase documents phase by phase. Agent-QA independently performs all three **Confirmation Measures** per ISO 26262 Part 2.
+Agent-Safety authors SafetyCase documents phase by phase. Agent-QA performs internal
+reviews structured after the three **Confirmation Measures** of ISO 26262 Part 2
+(Cl.6.4.9). **Note (v0.5):** because Agent-QA does not meet the person/organization
+independence of ISO 26262-2:2018 Table 1 (see "Honest Independence Statement" below),
+these internal reviews are verification-support measures, not ISO-conformant
+confirmation measures. ISO-conformant confirmation measures require an external ISA.
 
 | Confirmation Measure | ISO 26262 Basis | Description |
 |--------------------|-----------------|-------------|
@@ -105,7 +110,7 @@ Agent-Safety authors SafetyCase documents phase by phase. Agent-QA independently
 
 | Item | Description |
 |------|-------------|
-| Core role | **Internal Safety Assessor** — all three Confirmation Measures |
+| Core role | **Internal reviewer** — internal reviews structured after the three Confirmation Measures (verification-support; ISO-conformant confirmation measures delegated to external ISA) |
 | Review scope | All SafetyCase deliverables by Agent-Safety (HARA → FSC → TSC → SSRS → FMEA → SafetyCase) |
 | Deliverables | Confirmation Review records (OSR-CR-NNN), Audit records (OSR-FSA-NNN), Assessment reports (OSR-FSAMNT-NNN) |
 | Branch access | Mandatory approver on all safety/* PRs |
@@ -128,18 +133,53 @@ Agent-Docs        -          support              -               -        O
 
 ---
 
-## Independence Levels — ISO 26262 Part 2 Table 1
+## Independence Levels — ISO 26262-2:2018 Table 1 (Corrected v0.5)
 
-| Level | Definition | ASIL-D Status |
-|-------|-----------|---------------|
-| I1 | Independent person (same team) | Insufficient |
-| I2 | Independent team (same organization) | Partially satisfies |
-| I3 | Independent organization or external body | **Recommended for ASIL-D** |
+| Level | Definition |
+|-------|-----------|
+| I0 | No independence requirement |
+| I1 | Different person |
+| I2 | Different persons, different team |
+| I3 | Different persons, different department/organization |
 
-**Plan:**
-- Phase 0–4: Agent-QA as internal reviewer (I2)
-- Phase 5: External ISA (TÜV SÜD, TÜV Rheinland, SGS, or Bureau Veritas) for I3
-- Gap documented in Safety Plan as OSR-RISK-001
+**Required independence per confirmation measure (ISO 26262-2:2018 Table 1 — "shall", not "recommended"):**
+
+| Confirmation Measure | Required Independence |
+|---------------------|----------------------|
+| Confirmation review of the HARA | **I3 — at ALL ASILs** (ASIL not yet determined at review time) |
+| Confirmation review of the safety plan | I3 at ASIL-D |
+| Confirmation review of the safety case | I3 at ASIL-D |
+| Functional safety audit | I3 at ASIL-D |
+| Functional safety assessment | I3 at ASIL-D |
+
+> **Correction (v0.5):** Earlier versions of this document stated I3 was "Recommended for ASIL-D."
+> That was incorrect. ISO 26262-2:2018 Table 1 **requires** I3 for the measures above,
+> and requires I3 for the HARA confirmation review regardless of ASIL.
+
+### Honest Independence Statement (Governing Constraint)
+
+The Agent-Safety / Agent-QA / Agent-VnV structure consists of **AI agent instances
+operated by a single maintainer**. Persons-based independence in the sense of
+ISO 26262-2:2018 Table 1 (different persons, different team/department) is therefore
+**not met — not even I2**. Role separation between agents provides useful defect-finding
+diversity but no organizational independence.
+
+Consequences:
+
+1. All internal review records (OSR-CR-*) produced by Agent-QA are classified as
+   **verification-support measures** (technical reviews supporting ISO 26262-6 Cl.9
+   verification), **not** as ISO 26262-conformant confirmation measures.
+2. ISO-conformant confirmation reviews, the functional safety audit, and the functional
+   safety assessment **require independent human reviewers / an external ISA**.
+3. This is the **governing constraint** on any compliance claim of this project and is
+   tracked as **OSR-RISK-001** in SAFETY_PLAN.md. Internal review records serve as
+   preparatory input to the external ISA, nothing more.
+
+**Plan (revised v0.5):**
+- Phase 0–4: Agent-QA internal reviews continue as verification-support measures (sub-I2, documented as such in each record)
+- **Before Phase 2 exit (at the latest):** external ISA engaged for a retrospective I3 confirmation review of all Phase 1 artifacts (HARA, FSC, SSRS, review records)
+- Phase 3–5: external ISA (TÜV SÜD, TÜV Rheinland, SGS, or Bureau Veritas) performs ongoing I3 confirmation measures, functional safety audit, and final assessment
+- Gap documented in Safety Plan as OSR-RISK-001; issue record OSR-ISSUE-005 (Class B, open)
 
 ---
 
@@ -163,5 +203,17 @@ Agent-Docs        -          support              -               -        O
 | Phase 1: Architecture & Safety Analysis | Agent-Safety, Agent-Docs | Agent-QA (review) |
 | Phase 2: Kernel | Agent-Kernel, Agent-Build | Agent-VnV (unit tests) |
 | Phase 3: SafetyFunction implementation | Agent-Safety | **Agent-QA, Agent-VnV** (independent) |
-| Phase 4: Integration & Testing | Agent-VnV | Agent-QA (review), Agent-Safety (defect fix) |
-| Phase 5: Certification prep | Agent-Docs, Agent-QA | All agents + External ISA |
+| Phase 4: Integration & Testing | Agent-VnV | Agent-QA (review), Agent-Safety (defect fix), External ISA (ongoing I3 confirmation measures) |
+| Phase 5: Certification prep | Agent-Docs, Agent-QA | All agents + External ISA (functional safety assessment) |
+
+> External ISA engagement begins **before Phase 2 exit** with a retrospective I3
+> confirmation review of Phase 1 artifacts (see Independence Levels section).
+
+---
+
+## Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 0.4 | — | Prior baseline (agent roles, independence matrix, branch protection) |
+| 0.5 | 2026-07-02 | Corrected ISO 26262-2:2018 Table 1 rendering (I3 is required, not "recommended", for ASIL-D confirmation measures; I3 required for HARA confirmation review at all ASILs). Added Honest Independence Statement: single-maintainer AI-agent structure does not meet I2/I3; internal OSR-CR-* records reclassified as verification-support measures. ISA engagement moved earlier: retrospective I3 confirmation review of Phase 1 artifacts before Phase 2 exit. Linked OSR-RISK-001 / OSR-ISSUE-005. (Per OSR-CR-ARCH-001 findings F-10, F-14.) |

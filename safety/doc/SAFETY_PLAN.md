@@ -1,10 +1,10 @@
 # OpenSafetyRTOS — Software Safety Plan
 
 **Document ID:** OSR-SP-001
-**Version:** 0.1 (Draft)
+**Version:** 1.1
 **Status:** In Review
-**Date:** 2026-04-18
-**Target Standard:** ISO 26262-6 (Software) / ISO 26262-9 (ASIL Decomposition)
+**Date:** 2026-07-02
+**Target Standard:** ISO 26262-2 (Safety Management) / ISO 26262-6 (Software) / ISO 26262-8 (Supporting Processes) / ISO 26262-9 (ASIL Decomposition)
 
 ---
 
@@ -60,10 +60,10 @@ Any modification to partition boundaries, MPU region assignments, or Mailbox com
 
 | Activity | Output | Owner | Status |
 |---|---|---|---|
-| Derive software safety requirements from system-level safety goals | Software Safety Requirements Specification (OSR-SSRS-001) | Safety Engineer | Pending |
-| Define SafetyFunction functional requirements (watchdog, MPU, mailbox validation, safe state) | OSR-SSRS-001 | Safety Engineer | Pending |
+| Derive software safety requirements from system-level safety goals | Software Safety Requirements Specification (OSR-SSRS-001) | Safety Engineer | Done (v1.2) |
+| Define SafetyFunction functional requirements (watchdog, MPU, mailbox validation, safe state) | OSR-SSRS-001 | Safety Engineer | Done (v1.2) |
 | Define FFI requirements (what interference scenarios must be prevented) | FFI Analysis (OSR-FFIA-001) | Safety Engineer | Pending |
-| Peer review of SSRS | SSRS review record | Independent Safety Assessor | Pending |
+| Internal review of SSRS (verification-support; sub-I2 — see §6a) | OSR-CR-SSRS-001/-002 | Agent-QA (internal) | Done — ISA confirmation review pending (OSR-RISK-001) |
 
 ### Phase 2 — Architectural Design
 
@@ -111,6 +111,23 @@ Any modification to partition boundaries, MPU region assignments, or Mailbox com
 
 ---
 
+## 4a. Safety Case Document Status (as of 2026-07-02)
+
+| Document | ID / Version | Review Status |
+|---|---|---|
+| HARA | OSR-HARA-001 v1.3 | Approved (internal) via **OSR-CR-HARA-003** (2026-07-02, closes prior conditional approvals OSR-CR-HARA-001/-002) — contingent on external ISA confirmation review (OSR-ISSUE-005) |
+| FSC | OSR-FSC-001 v1.3 | Approved (internal) via OSR-CR-FSC-003; ISA confirmation review pending |
+| SSRS | OSR-SSRS-001 v1.2 | Approved (internal) via OSR-CR-SSRS-002; ISA confirmation review pending |
+| AoU Registry | OSR-AOU-001 v1.0 (`safety/doc/AOU.md`) | New — canonical Assumption-of-Use registry (AoU-01..10); resolves prior AoU ID collisions (OSR-ISSUE-003) |
+| Architecture / FFI model | ADR-005 (`docs/ADR-005`) | New — privilege/FFI model (no MPU lock on ARMv7-M; detective MPU-config integrity check; SafetyFunction in independent-timer ISR; Level 3 via AIRCR.SYSRESETREQ) |
+| Consolidated review record | OSR-CR-ARCH-001 (2026-07-02) | Audit trail of the 2026-07-02 architecture & cross-document consistency review |
+
+> All internal review approvals above are **verification-support measures** performed at
+> sub-I2 independence (see §6a). None constitutes an ISO 26262-conformant confirmation
+> measure until confirmed by the external ISA.
+
+---
+
 ## 5. Required Evidence for Certification
 
 The following evidence artifacts are required to support an ISO 26262 ASIL-D compliance claim for the SafetyFunction partition. Each artifact must be reviewed and approved before the evidence package is finalized.
@@ -142,12 +159,34 @@ The following evidence artifacts are required to support an ISO 26262 ASIL-D com
 
 ---
 
+## 6a. Confirmation Measures and Independence (ISO 26262-2:2018 Cl.6.4.9)
+
+Confirmation measures (confirmation reviews, functional safety audit, functional safety
+assessment) are specified in **ISO 26262-2:2018 Cl.6.4.9** with required independence
+per **Table 1**. Earlier project documents cited these as "Part 2 Cl.8/9/10"; that
+citation is corrected here and in OSR-CR-ARCH-001 (finding F-10).
+
+Per ISO 26262-2:2018 Table 1, I3 independence is **required** for the HARA confirmation
+review (all ASILs) and for ASIL-D safety plan/safety case confirmation reviews, the
+functional safety audit, and the functional safety assessment.
+
+**Project reality (governing constraint — OSR-RISK-001, OSR-ISSUE-005):** all Phase 0–1
+reviews to date were performed by Agent-QA, an AI agent operated by the same single
+maintainer as the author agents. This does not meet I2, let alone I3. These internal
+reviews are therefore classified as **verification-support measures** (see
+`docs/TEAM.md` v0.5, "Honest Independence Statement"). ISO-conformant confirmation
+measures require independent human reviewers/an external ISA, whose engagement is
+scheduled **no later than Phase 2 exit** (retrospective I3 confirmation review of all
+Phase 1 artifacts).
+
+---
+
 ## 7. Safety Development Standards
 
 | Domain | Standard / Tool |
 |---|---|
 | Coding standard | MISRA-C:2012 |
-| Static analysis | To be selected (e.g., PC-lint Plus, Polyspace, Helix QAC) |
+| Static analysis | Cppcheck (defect detection, TCL2) + PC-lint Plus / Polyspace (MISRA-C:2012, TCL3) — per OSR-TQ-001 v1.1 (supersedes earlier "to be selected") |
 | Coverage measurement | MC/DC — target: 100% for safety partition |
 | Requirements management | GitHub Issues + RTM document (OSR-RTM-001) |
 | Version control | Git with branch protection; `safety/` branches require 2 reviewers |
@@ -160,6 +199,7 @@ The following evidence artifacts are required to support an ISO 26262 ASIL-D com
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 0.1 | 2026-04-18 | Safety Manager | Initial draft |
+| 1.1 | 2026-07-02 | Safety Manager | Added §4a document-status table reflecting current truth (HARA v1.3 conditionally approved pending OSR-CR-HARA-003 closure conditions; FSC v1.3 approved via OSR-CR-FSC-003; SSRS v1.2 approved via OSR-CR-SSRS-002; OSR-AOU-001 v1.0 new; ADR-005 new). Added §6a: confirmation measures cited correctly as ISO 26262-2:2018 Cl.6.4.9 with Table 1 independence; internal Agent-QA reviews reclassified as verification-support measures (sub-I2); ISA engagement moved to no later than Phase 2 exit. Fixed Phase 1 reviewer-role contradiction with docs/TEAM.md (SSRS review performed by Agent-QA, not ISA). Updated Phase 1 activity statuses. Updated OSR-RISK-001 mitigation. (Per OSR-CR-ARCH-001 F-10/F-11/F-14.) |
 
 ---
 
@@ -171,6 +211,6 @@ The following evidence artifacts are required to support an ISO 26262 ASIL-D com
 
 | ID | 리스크 | 영향 | 가능성 | 완화 계획 |
 |----|------|------|-------|---------|
-| OSR-RISK-001 | Phase 0~4에서 내부 Agent-QA(I2)가 독립성 검토 수행 — ASIL-D I3 요건 미충족 | 인증 기관 지적 가능성 | 중간 | Phase 5에서 외부 ISA 고용하여 I3 달성. 내부 리뷰 기록은 외부 ISA 검토 기반 자료로 활용 |
+| OSR-RISK-001 | 내부 Agent-QA 검토는 단일 운영자가 구동하는 AI 에이전트 구조로 인해 I2조차 충족하지 못함 (ISO 26262-2:2018 Table 1: HARA 확인 검토는 전 ASIL에서 I3 필수, ASIL-D 확인 조치 전반 I3 필수) — 확인 조치(Confirmation Measures) 요건 미충족 | 인증 불가 수준의 프로세스 부적합 (지배적 제약) | 높음 | 내부 리뷰를 검증 지원 조치(verification-support)로 재분류 (TEAM.md v0.5, §6a). **늦어도 Phase 2 종료 전** 외부 ISA를 고용하여 Phase 1 산출물 전체에 대한 소급 I3 확인 검토 수행. 내부 리뷰 기록은 외부 ISA 검토 기반 자료로 활용. 이슈 기록: OSR-ISSUE-005 (Class B, Open) |
 | OSR-RISK-002 | FreeRTOS COTS 자격부여 증거 부족 | Part 8 Cl.12 미준수 지적 | 중간 | FreeRTOS 사전 사용 이력 수집, MIT 라이선스 검토, QM(D) 처리 근거 문서화 |
 | OSR-RISK-003 | SEooC Assumption of Use 미충족 통합자 존재 | 시스템 레벨 안전성 저하 | 낮음 | AoU 문서 명확화, Integration Guide 상세 작성, 통합자 체크리스트 제공 |

@@ -1,9 +1,9 @@
 # OpenSafetyRTOS — Failure Mode and Effects Analysis (FMEA)
 
 **Document ID:** OSR-FMEA-001
-**Version:** 0.1 (Draft)
+**Version:** 0.2 (Draft)
 **Status:** In Progress
-**Date:** 2026-04-18
+**Date:** 2026-07-02
 **Standard:** ISO 26262-9, ISO 26262-6 Annex B
 **Scope:** SafetyFunction partition (ASIL-D(D)) and QM/Safety partition boundary
 
@@ -61,13 +61,22 @@ Copy and complete the following template when adding new failure modes.
 
 ## 5. Coverage Matrix
 
-| SSR ID | FMEA Item(s) | Design Reference | Test Reference | Status |
+SSR IDs below follow the approved module allocation of OSR-SSRS-001 (SSR-001~003-WDG,
+SSR-004~009-MPU, SSR-010~013-FSM, SSR-014~019-MBX, SSR-020~023-BST, SSR-024~025-CLK,
+SSR-026~027-BOD). Earlier placeholder IDs (pre-SSRS approval) were reconciled in v0.2.
+
+| SSR ID(s) | FMEA Item(s) | Design Reference | Test Reference | Status |
 |---|---|---|---|---|
-| SSR-010 (Mailbox integrity) | FMEA-001 | ARCHITECTURE.md §3.2 | TBD | Open |
-| SSR-011 (MPU enforcement) | FMEA-002 | ADR-002 | TBD | Open |
-| SSR-012 (Priority enforcement) | FMEA-003 | ARCHITECTURE.md §5 | TBD | Open |
-| SSR-013 (Watchdog liveness) | FMEA-004 | TBD | TBD | Open |
-| SSR-014 (Stack isolation) | FMEA-005 | ADR-002 §Stack Guards | TBD | Open |
+| SSR-014~019-MBX (Mailbox single path, CRC32/timestamp/range validation, no-use-on-failure, escalation) | FMEA-001 | ARCHITECTURE.md §3.2; FSR-06-01~04 | TBD | Open |
+| SSR-004-MPU, SSR-005-MPU, SSR-009-MPU (MPU init/regions, HardFault on QM access, boot-time MPU integrity check) | FMEA-002 | ADR-002; ADR-005 (privilege model — MPU protection detective against privileged/kernel faults, preventive for unprivileged QM tasks) | TBD | Open |
+| SSR-010-FSM (SafetyFunction highest priority) — see note below | FMEA-003 | ARCHITECTURE.md §5; ADR-005 (SafetyFunction runs in independent-timer ISR, removing scheduler-starvation dependency) | TBD | Open |
+| SSR-001~003-WDG (watchdog init, kick period ≤50% / timeout ≥WCRT×3, no-disable) | FMEA-004 | FSR-01-01, FSR-01-04 | TBD | Open |
+| SSR-004-MPU (Region 2 ASIL-D Data + Stack, Region 6 Safety Stack Guard — no access) | FMEA-005 | ADR-002 §Stack Guards; SSRS SSR-004 v1.2 region table | TBD | Open |
+
+> **Note (v0.2):** ADR-005 moves SafetyFunction execution from a FreeRTOS task to a
+> dedicated independent-timer ISR. FMEA-003 (scheduler starvation) mitigations and the
+> SSR-010-FSM linkage must be re-evaluated against the new execution model when the
+> FMEA rows are next updated (tracked via OSR-CR-ARCH-001 F-03 disposition).
 
 ---
 
@@ -76,6 +85,7 @@ Copy and complete the following template when adding new failure modes.
 | Version | Date | Author | Changes |
 |---|---|---|---|
 | 0.1 | 2026-04-18 | Safety Engineer | Initial draft with 5 seed entries |
+| 0.2 | 2026-07-02 | Safety Engineer | §5 Coverage Matrix reconciled with approved OSR-SSRS-001 module allocation (placeholder IDs SSR-010~014 replaced with SSR-xxx-WDG/MPU/FSM/MBX mapping); added ADR-005 references (privilege model, independent-timer ISR execution) and re-evaluation note for FMEA-003. Per OSR-CR-ARCH-001 F-11. |
 
 ---
 

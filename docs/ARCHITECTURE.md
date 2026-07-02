@@ -1,60 +1,80 @@
 # OpenSafetyRTOS — Architecture Design Document
 
-**Version:** 0.2
+**Version:** 0.3
 **Status:** In Progress
-**Target Standard:** ISO 26262 ASIL-D / IEC 61508 SIL-3
+**Target Standard:** ISO 26262 ASIL-D (target) / IEC 61508 SIL-3 (target)
 
 ---
 
 ## 1. Project Philosophy
 
-OpenSafetyRTOS is built on an open-source philosophy: create a production-ready, automotive safety-critical RTOS that any engineer can inspect, use, and contribute to — including its certification evidence.
+OpenSafetyRTOS is built on an open-source philosophy: create a production-ready, automotive safety-critical RTOS that any engineer can inspect, use, and contribute to — including its safety evidence.
 
 Rather than rewriting FreeRTOS from scratch at ASIL-D, OpenSafetyRTOS adopts an **ISO 26262 Part 9 ASIL Decomposition** strategy. FreeRTOS runs as a QM(D) partition providing all standard RTOS services. An independent SafetyFunction layer, developed to ASIL-D(D), enforces safety monitoring, hardware memory protection, and fault handling above it.
 
-This is the same structural approach used by TTTech (MotionWise: ASIL-D Hypervisor + QM Guest OS) and ETAS (RTA-OS over a QM application layer) — but fully open-source, with all certification evidence public under CC BY 4.0.
+**What this yields (scope of claim):** a *fail-safe monitor architecture* (E-Gas style). The ASIL-D-rated behaviour is fault detection and safe-state enforcement. FreeRTOS's own services (scheduling, IPC, drivers) remain QM and must not be used as safety mechanisms by ASIL-rated application logic. This differs from a fully ASIL-D-certified services RTOS (e.g., SafeRTOS); see ADR-001.
 
 ---
 
 ## 2. Core Design Strategy: ISO 26262 ASIL Decomposition
 
-Per ISO 26262 Part 9, ASIL-D can be achieved by decomposing a system-level requirement into two independent components that together fulfill the requirement:
+Per ISO 26262-9:2018 Cl.5, the system-level safety requirement is decomposed into redundant requirements allocated to sufficiently independent elements:
 
 ```
-FreeRTOS        QM(D)          Standard RTOS functions (scheduling, IPC, drivers)
-SafetyFunction  ASIL-D(D)      Safety monitoring, MPU enforcement, fault handling
-─────────────────────────────────────────────────────────────────────────────────
-OpenSafetyRTOS  ASIL-D         System-level safety goal
+Safety requirement (ASIL D)
+ ├── Monitoring requirement        → SafetyFunction  ASIL D(D)
+ │      detect + enforce safe state (watchdog, MPU integrity, fault handling)
+ └── Intended-function requirement → FreeRTOS        QM(D)
+        standard RTOS services (scheduling, IPC, drivers)
+──────────────────────────────────────────────────────────────────────────
+ OpenSafetyRTOS system-level safety goal: ASIL D (fail-safe)
 ```
 
-**Independence condition**: Freedom From Interference (FFI) between the QM and ASIL-D partitions must be demonstrated — in hardware (ARM MPU) and in software (Mailbox validation). This is the foundational requirement that makes the decomposition valid under ISO 26262.
-
-Reference implementations: TTTech MotionWise (Hypervisor + Guest OS), ETAS RTA-OS (decomposed architecture).
+**Independence condition (ISO 26262-9:2018 Cl.6):** Freedom From Interference (FFI) between the QM and ASIL-D partitions must be demonstrated — spatially (ARM MPU + detective integrity checks, ADR-002/ADR-005), temporally (dedicated safety timer ISR, ADR-005 §D1(c)), and on the communication path (Mailbox validation). This is the foundational requirement that makes the decomposition valid.
 
 ---
 
-## 3. Memory Partitioning and FFI
+## 3. Memory Partitioning, Privilege Model, and FFI
 
-FFI is the **core design requirement** of this project. The QM partition must be demonstrably unable to interfere with the ASIL-D partition's data, execution, or timing.
+FFI is the **core design requirement** of this project. The QM partition must be demonstrably unable to interfere with the ASIL-D partition's data, execution, or timing — or, where hardware prevention is architecturally impossible, interference must be *detected within a bounded, FTTI-budgeted latency*.
 
-### 3.1 Memory Region Definitions
+### 3.1 Privilege Model (summary of ADR-005)
+
+The ARMv7-M MPU distinguishes only **privileged vs. unprivileged** execution and has **no lock** — any privileged code can rewrite it. The protection model is therefore explicitly split:
+
+| Interference source | Control type | Mechanism |
+|---|---|---|
+| Unprivileged QM tasks (FreeRTOS ARM_CM4_MPU port, AoU-10) | **Preventive** (hardware) | MPU access permissions; violation → MemManage fault |
+| Privileged FreeRTOS kernel fault | **Detective** (bounded latency) | Per-cycle `safety_mpu_integrity_check()` against a CRC-protected shadow + VTOR/IVT CRC check; watchdog kick gated on the checks |
+| Non-CPU bus masters (DMA, ...) | Configuration ownership + integrator constraint | SafetyFunction owns DMA configuration; AoU-07 |
+
+SafetyFunction itself is **not a FreeRTOS task**: it runs in the boot context (`safety_boot()`, ADR-004) and thereafter in the **ISR of a dedicated independent hardware timer** (AoU-04) at higher NVIC priority than all QM interrupts — its periodic execution does not depend on the QM scheduler. Residual risks (e.g., the window between integrity checks) are stated openly in ADR-005 §4.
+
+### 3.2 Memory Region Definitions
+
+Access rights are expressed per privilege level (the only distinction the hardware offers):
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ Region                │ SafetyFunction Access │ FreeRTOS(QM) Access│
-├──────────────────────────────────────────────────────────────────┤
-│ ASIL-D Region         │ Read / Write          │ NO ACCESS          │
-│ QM Region             │ Read Only             │ Read / Write       │
-│ QM→Safety Mailbox     │ Read Only             │ Read / Write       │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ Area               │ Privileged (SafetyFunction  │ Unprivileged        │
+│                    │ + FreeRTOS kernel)          │ (QM tasks)          │
+├────────────────────────────────────────────────────────────────────────┤
+│ ASIL-D Area        │ Code RO+X / Data RW         │ NO ACCESS           │
+│ QM Area            │ R/W (Safety reads only,     │ R/W (+X for code)   │
+│                    │  by convention)             │                     │
+│ QM→Safety Mailbox  │ R/W (Safety validates       │ R/W                 │
+│                    │  before use)                │                     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Invariant rules:**
-- FreeRTOS(QM) **cannot write** to the ASIL-D Region — enforced in hardware by the ARM MPU (violation → HardFault → Safe State Level 3)
-- SafetyFunction reads the QM Region for monitoring purposes only; it does not write to QM memory
-- All QM→SafetyFunction data transfer uses the dedicated Mailbox region exclusively
+- Unprivileged QM tasks **cannot access** the ASIL-D area — enforced in hardware by the ARM MPU. A violation raises a **MemManage fault** (escalating to HardFault if the MemManage exception is disabled), handled by SafetyFunction → Safe State Level 3.
+- The privileged FreeRTOS kernel *architecturally could* write ASIL-D memory or the MPU; this is covered detectively per §3.1 (see ADR-005 for the full argument and residual risk).
+- ARMv7-M AP encodings cannot give unprivileged code more rights than privileged code, so "QM writes / Safety read-only" mailbox semantics are a **software convention** (mailbox API + validation), not a hardware property.
+- All QM→SafetyFunction data transfer uses the dedicated Mailbox region exclusively (AoU-03).
+- The full 8-region MPU allocation (deny-all background, separate QM code/data regions — flash and SRAM cannot share one region — guard regions, peripheral SRD carve-outs) is specified in ADR-002.
 
-### 3.2 Cross-Partition Communication: Mailbox Pattern
+### 3.3 Cross-Partition Communication: Mailbox Pattern
 
 When the QM partition must pass data to SafetyFunction, it uses the **Mailbox** mechanism — the only permitted cross-partition channel.
 
@@ -70,33 +90,23 @@ When the QM partition must pass data to SafetyFunction, it uses the **Mailbox** 
                                         Use data         Fault handler
 ```
 
-**SafetyFunction Mailbox receive algorithm (3-stage validation):**
+**SafetyFunction Mailbox receive algorithm (3-stage validation), simplified illustration** — the actual implementation is `safety_mailbox_receive()` in `kernel/safety/src/mailbox.c`, which additionally snapshots the QM-writable mailbox into ASIL-D memory before validating (TOCTOU defence) and counts consecutive failures:
 
 ```c
-safety_status_t safety_mailbox_receive(mailbox_t *mb, void *out, size_t len)
-{
-    /* ① CRC integrity check */
-    if (crc32(mb->data, mb->data_len) != mb->crc) {
-        return SAFETY_ERR_CRC_FAIL;
-    }
-
-    /* ② Timestamp freshness check (stale data detection) */
-    if ((safety_get_tick() - mb->timestamp) > MAILBOX_MAX_AGE_MS) {
-        return SAFETY_ERR_STALE;
-    }
-
-    /* ③ Value range check against expected schema */
-    if (!safety_range_check(mb->data, mb->data_len, mb->schema)) {
-        return SAFETY_ERR_RANGE;
-    }
-
-    /* All checks passed — safe to use */
-    memcpy(out, mb->data, len);
-    return SAFETY_OK;
+/* Illustrative only — see kernel/safety/src/mailbox.c for the real code */
+status = SAFETY_OK;
+if (crc32(snap.data, snap.data_len) != snap.crc) {
+    status = SAFETY_ERR_CRC_FAIL;      /* (1) CRC integrity */
+} else if ((safety_get_tick() - snap.timestamp) > MAILBOX_MAX_AGE_MS) {
+    status = SAFETY_ERR_STALE;         /* (2) Freshness check */
+} else if (!safety_range_check(snap.data, snap.data_len, snap.schema)) {
+    status = SAFETY_ERR_RANGE;         /* (3) Value range check */
+} else {
+    copy_to_asil_d(out, snap.data, snap.data_len);  /* safe to use */
 }
 ```
 
-SafetyFunction **never implicitly trusts** data from the QM partition. This is the core of software-level FFI achievement.
+SafetyFunction **never implicitly trusts** data from the QM partition. Three consecutive validation failures escalate to Safe State Level 2 (`SAFETY_MAILBOX_FAILURE_LIMIT`, SSR-017).
 
 ---
 
@@ -107,10 +117,13 @@ SafetyFunction **never implicitly trusts** data from the QM partition. This is t
 │                   Application Layer                     │
 ├───────────────────────┬─────────────────────────────────┤
 │   FreeRTOS (QM)       │   SafetyFunction (ASIL-D)       │
-│  - Task Scheduling    │  - Watchdog Management          │
-│  - IPC (Queue/Sem)    │  - MPU Configuration            │
-│  - Device Drivers     │  - Task Deadline Monitor        │
-│  - Memory Mgmt        │  - Fault Detection & Isolation  │
+│  - Task Scheduling    │   [runs in dedicated safety     │
+│  - IPC (Queue/Sem)    │    timer ISR — not a task]      │
+│  - Device Drivers     │  - Watchdog Kick Policy         │
+│  - Memory Mgmt        │  - MPU Config + Integrity Check │
+│  [kernel privileged;  │  - VTOR / IVT CRC Check         │
+│   tasks unprivileged, │  - Task Deadline Monitor        │
+│   ARM_CM4_MPU port]   │  - Fault Detection & Isolation  │
 │                       │  - Safe State Manager (FSM)     │
 │                       │  - Mailbox Validation           │
 │                       │  - Clock Monitor                │
@@ -128,11 +141,12 @@ SafetyFunction **never implicitly trusts** data from the QM partition. This is t
 
 | Threat Scenario | Mitigation Mechanism |
 |----------------|---------------------|
-| QM overwrites ASIL-D memory | ARM MPU — hardware block (violation → HardFault → Level 3 reset) |
+| Unprivileged QM task overwrites ASIL-D memory | ARM MPU — hardware block (violation → MemManage fault → Level 3) |
+| Privileged QM kernel fault overwrites ASIL-D memory / MPU registers | Detective: per-cycle MPU integrity check vs. CRC shadow + RAM guard-word checks; detection ≤ 1 safety cycle, FTTI-budgeted (ADR-005) |
 | QM writes corrupt data to Mailbox | CRC + range validation — software block |
 | QM sends stale Mailbox data | Timestamp freshness check |
-| QM task starves SafetyFunction | SafetyFunction task holds highest priority (fixed) |
-| QM stack overflow corrupts Safety stack | MPU stack guard regions (32 B no-access zones) |
+| QM starves SafetyFunction of CPU time | SafetyFunction runs in dedicated timer ISR above all QM interrupt priorities (AoU-04) — no scheduler dependency |
+| QM stack overflow corrupts Safety stack | MPU stack guard regions (32 B no-access zones) + deny-all background gap |
 
 ---
 
@@ -142,28 +156,30 @@ Beyond memory, QM and ASIL-D partitions share hardware resources on ARM Cortex-M
 
 | Shared Resource | Threat Scenario | Mitigation |
 |----------------|----------------|------------|
-| Interrupts | QM ISR preempts SafetyFunction task | SafetyFunction ISR at highest priority; BASEPRI masking available |
-| NVIC vector table | QM overwrites interrupt vector table | IVT placed in ASIL-D memory region (MPU protected) |
-| DMA | QM DMA channel accesses ASIL-D memory | Dedicated ASIL-D DMA channels; QM DMA restricted to QM memory |
-| Timer / Clock | QM modifies SafetyFunction clock source | SafetyFunction uses dedicated hardware timer (AoU-04); timer registers MPU-protected |
-| Power | Power anomaly causes MPU register loss | Power monitor → Safe State Level 3 |
-| Stack pointer | QM stack overflow → SafetyFunction stack corruption | MPU stack guard + dedicated per-partition stack regions |
-| SafetyFunction internal fault | SafetyFunction deadlock / crash | Independent hardware Watchdog — missed kick → MCU reset (Level 3) |
+| Interrupts | QM ISR preempts / delays the SafetyFunction cycle | Safety timer ISR at NVIC priority above all QM interrupts and above `configMAX_SYSCALL_INTERRUPT_PRIORITY` (AoU-04); unprivileged code cannot touch the NVIC |
+| NVIC / VTOR / vector table | Privileged QM code retargets VTOR or overwrites vectors | **The SCS (NVIC/SCB/VTOR) cannot be MPU-protected from privileged code.** Mitigation is detective: per-cycle VTOR readback + CRC-32 over the vector table (in ASIL-D flash); mismatch → Level 3 (ADR-005 §D1(e)) |
+| DMA | A DMA channel writes into ASIL-D memory | **The MPU does NOT gate DMA (or any non-CPU bus master).** Mitigation: SafetyFunction owns the DMA controller configuration and validates every QM transfer request against the ASIL-D address ranges; DMA register window privileged-only; integrator obligation AoU-07 for all other bus masters; detective RAM pattern (guard-word) checks each cycle (ADR-005 §D1(f)) |
+| Timer / Clock | QM modifies SafetyFunction clock source | SafetyFunction uses a dedicated independent hardware timer (AoU-04) on an independent clock source with hardware clock supervision (AoU-05); timer register window privileged-only |
+| Power | Power anomaly causes MPU register loss | Power monitor (BOD/PVD, AoU-08) → Safe State Level 3; MPU integrity check as detective backup |
+| Stack pointer | QM stack overflow → SafetyFunction stack corruption | MPU stack guard + dedicated per-partition stack regions + deny-all background |
+| SafetyFunction internal fault | SafetyFunction deadlock / crash | Independent hardware Watchdog (AoU-02) — missed kick → MCU reset (Level 3 backstop) |
 
 > **SafetyFunction Single Point of Failure mitigation:**
-> The independent hardware Watchdog is the backstop against SafetyFunction itself becoming a single point of failure. SafetyFunction kicks the Watchdog only during normal operation. Any deadlock, infinite loop, or crash results in a missed kick and MCU-level reset (Safe State Level 3) — independent of all software state.
+> The independent hardware Watchdog is the backstop against SafetyFunction itself becoming a single point of failure. The kick policy is checkpoint-gated (`kernel/safety/src/watchdog.c`): the watchdog is kicked only if *all* monitored checks (mailbox, MPU integrity, clock, ...) completed successfully in the cycle. Any deadlock, suppressed safety ISR, or corrupted check chain results in a missed kick and MCU-level reset — independent of all software state.
 
 ---
 
 ## 6. Safe State Architecture
 
-Three escalating Safe State levels are defined (see `safety/doc/SAFE_STATE_DEFINITION.md`):
+Three escalating Safe State levels are defined (see `safety/doc/SAFE_STATE_DEFINITION.md`; implementation: `kernel/safety/src/safe_state.c`):
 
 | Level | Name | Trigger Examples | System Action |
 |-------|------|-----------------|---------------|
-| Level 1 | Degraded Operation | Single Mailbox validation failure | Retry; increment fault counter |
-| Level 2 | Controlled Stop | N=3 consecutive Mailbox failures; clock anomaly detected | Suspend QM tasks; invoke application callback |
-| Level 3 | Emergency Reset | ASIL-D memory violation; SafetyFunction internal fault; power anomaly | Disable interrupts; stop Watchdog kick → MCU reset |
+| Level 1 | Degraded Operation | Single Mailbox validation failure | Retry; increment fault counter (3 consecutive → Level 2) |
+| Level 2 | Controlled Stop | 3 consecutive Mailbox failures; clock anomaly detected; Level-1 fault limit | Suspend QM tasks; invoke application callback (AoU-11); recovery only via integrator procedure (AoU-09) |
+| Level 3 | Emergency Reset | ASIL-D memory violation; MPU/VTOR integrity mismatch; SafetyFunction internal fault; power anomaly | **Immediate software reset via AIRCR.SYSRESETREQ**; watchdog-kick starvation retained as backstop only (ADR-004 §4.4 — removes up to 100 ms from the FTTI budget) |
+
+The safe-state level is monotonic at runtime (no silent de-escalation); a repeated Level-2 trigger while already stopped escalates to Level 3.
 
 ---
 
@@ -181,11 +197,11 @@ Three escalating Safe State levels are defined (see `safety/doc/SAFE_STATE_DEFIN
 
 | Component | Approach |
 |-----------|---------|
-| SafetyFunction layer | ASIL-D(D) development: MISRA-C:2012, MC/DC 100%, FMEA, independent V&V (Agent-VnV) and QA review (Agent-QA per ISO 26262 Part 2 Cl.8) |
+| SafetyFunction layer | ASIL-D(D) development: MISRA-C:2012, MC/DC 100%, FMEA, independent V&V (Agent-VnV) and QA review (Agent-QA per ISO 26262 Part 2 Cl.8) — see docs/TEAM.md for the documented independence limitations of AI-agent review |
 | FreeRTOS | ISO 26262 Part 8 Cl.12 COTS qualification + pre-existing use evidence |
-| FFI argument | This document + MPU configuration correctness + interrupt boundary + stack separation formal argument |
+| FFI argument | This document + ADR-005 (preventive/detective model, residual risks) + MPU configuration correctness + interrupt boundary + stack separation argument |
 | Mailbox validation | 100% unit test + MC/DC coverage (Agent-VnV, independent of Agent-Safety) |
-| Distribution | SEooC per ISO 26262 Part 8 Cl.13 — integrators validate Assumptions of Use |
+| Distribution | SEooC per ISO 26262-10:2018 Cl.9 — integrators validate the Assumptions of Use (canonical registry: safety/doc/AOU.md, OSR-AOU-001) |
 
 ---
 
@@ -195,7 +211,7 @@ Three escalating Safe State levels are defined (see `safety/doc/SAFE_STATE_DEFIN
 |-----------|---------|
 | FreeRTOS | MIT License (preserved as-is) |
 | OpenSafetyRTOS SafetyFunction layer | Apache 2.0 |
-| Certification evidence documents | CC BY 4.0 (freely shareable and adaptable with attribution) |
+| Safety evidence documents | CC BY 4.0 (freely shareable and adaptable with attribution) |
 
 ---
 

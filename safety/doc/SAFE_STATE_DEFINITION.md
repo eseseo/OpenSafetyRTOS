@@ -1,11 +1,11 @@
 # Safe State Definition — OpenSafetyRTOS
 
 **Document ID:** OSR-SS-001
-**Version:** 1.0
-**Status:** Approved (Draft for Phase 1 Review)
-**Date:** 2026-04-18
+**Version:** 1.1
+**Status:** Approved — v1.0 Phase 1 승인 완료; v1.1 개정(D2/AoU 정식 ID 반영), 재확인 검토 예정
+**Date:** 2026-07-02 (최초 작성 2026-04-18)
 **Author:** Agent-Safety
-**Standard Reference:** ISO 26262 Part 8 Cl.13 (SEooC), Part 4 Cl.8 (Safe State)
+**Standard Reference:** ISO 26262-10:2018 Cl.9 (SEooC), ISO 26262-1:2018 3.131 (safe state 정의)
 
 ---
 
@@ -13,14 +13,14 @@
 
 ### 1.1 정의
 
-ISO 26262에서 Safe State란 **합리적으로 예측 가능한 손해 위험이 없는 동작 모드**를 의미한다 (ISO 26262-1:2018, 용어 1.132). OpenSafetyRTOS는 SEooC(Safety Element out of Context)로 배포되므로, 정확한 차량 기능(브레이크, 스티어링 등)을 사전에 알 수 없다. 따라서 본 문서는 **RTOS 컴포넌트 수준에서 달성 가능한 Safe State**를 정의하고, 구체적인 액추에이터 수준 Safe State(예: 전원 차단, 제동 인가)는 시스템 통합자(Integrator)의 책임임을 명시한다.
+ISO 26262에서 Safe State란 **합리적으로 예측 가능한 손해 위험이 없는 동작 모드**를 의미한다 (ISO 26262-1:2018, 정의 3.131). OpenSafetyRTOS는 SEooC(Safety Element out of Context)로 배포되므로, 정확한 차량 기능(브레이크, 스티어링 등)을 사전에 알 수 없다. 따라서 본 문서는 **RTOS 컴포넌트 수준에서 달성 가능한 Safe State**를 정의하고, 구체적인 액추에이터 수준 Safe State(예: 전원 차단, 제동 인가)는 시스템 통합자(Integrator)의 책임임을 명시한다.
 
 ### 1.2 OpenSafetyRTOS Safe State의 범위
 
 OpenSafetyRTOS가 제공하는 것:
 - **결함 감지(Fault Detection):** CRC 오류, MPU 위반, 타임스탬프 만료, 범위 이탈 등을 감지
 - **결함 격리(Fault Isolation):** QM 파티션의 실행을 정지시켜 ASIL-D 파티션 보호
-- **결함 통보(Fault Notification):** 시스템 통합자가 등록한 콜백(AoU-07)을 통해 Safe State 진입 사실 및 원인 전달
+- **결함 통보(Fault Notification):** 시스템 통합자가 등록한 콜백(AoU-11, OSR-AOU-001)을 통해 Safe State 진입 사실 및 원인 전달
 - **알려진 상태 유지(Known State Hold):** MCU를 예측 가능한 정지 상태로 유지
 
 OpenSafetyRTOS가 제공하지 않는 것 (시스템 통합자 책임):
@@ -30,7 +30,7 @@ OpenSafetyRTOS가 제공하지 않는 것 (시스템 통합자 책임):
 
 ### 1.3 SEooC 맥락에서의 Safe State
 
-본 컴포넌트는 ISO 26262 Part 8 Cl.13에 따라 SEooC로 개발된다. Safe State의 완전한 구현은 통합 프로젝트(Integrating Project)에서 수행되어야 하며, OpenSafetyRTOS는 그 기반이 되는 **감지-격리-통보 메커니즘**을 ASIL-D 수준으로 제공한다.
+본 컴포넌트는 ISO 26262-10:2018 Cl.9에 따라 SEooC로 개발된다. Safe State의 완전한 구현은 통합 프로젝트(Integrating Project)에서 수행되어야 하며, OpenSafetyRTOS는 그 기반이 되는 **감지-격리-통보 메커니즘**을 ASIL-D 수준으로 제공한다.
 
 **예시 (참고용, 통합자 구현 사례):**
 | 차량 기능        | RTOS Safe State 진입 후 통합자 액션 예시          |
@@ -63,7 +63,7 @@ Safe State는 결함의 심각도와 영향 범위에 따라 3개 레벨로 계�
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Level 3: Emergency Reset (비상 리셋)                            │
-│  하드웨어 Watchdog 만료 → MCU 전체 리셋                          │
+│  SYSRESETREQ 즉시 SW 리셋 (실패 시 HW Watchdog 백스톱)           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -94,15 +94,16 @@ Safe State는 결함의 심각도와 영향 범위에 따라 3개 레벨로 계�
 - 통합자 콜백 호출: `safety_controlled_stop_cb(fault_code, fault_context)`
 
 **종료 조건:**
-- 통합자의 명시적 재시작 명령 (AoU-08 참조)
+- 통합자의 명시적 재시작 명령 (AoU-09 참조)
 - 또는 하드웨어 Reset 신호
 
 ### 2.3 Level 3 — Emergency Reset (비상 리셋)
 
-**정의:** SafetyFunction 자체가 동작 불능 상태이거나 Level 2 진입이 불가능하여 독립 하드웨어 Watchdog이 MCU 전체를 리셋하는 상태.
+**정의:** 치명적 결함 감지 시 SafetyFunction이 AIRCR.SYSRESETREQ로 MCU 전체를 **즉시 소프트웨어 리셋**하는 상태. SafetyFunction 자체가 동작 불능이거나 리셋 요청이 실패하는 경우에는 독립 하드웨어 Watchdog 만료가 백스톱으로 MCU를 리셋한다 (v1.1, D2).
 
 **특징:**
-- 소프트웨어적 제어 없음 — 순수 하드웨어 동작
+- **1차 수단 (소프트웨어 감지 시):** `SCB->AIRCR`에 `VECTKEY | SYSRESETREQ` 기록 → 즉시 MCU 리셋. **FTTI 비고:** 종전 "Watchdog 만료 대기" 방식 대비 최대 `WATCHDOG_TIMEOUT_MS`의 Level 3 진입 지연을 제거한다.
+- **백스톱 (SafetyFunction 동작 불능 또는 SYSRESETREQ 실패 시):** Watchdog kick 중단/부재 → 독립 하드웨어 Watchdog 만료 → MCU 리셋 (순수 하드웨어 동작, 소프트웨어 개입 없음)
 - MCU 전체 리셋: 모든 레지스터, RAM, 주변장치 초기화
 - 리셋 후 부트 시퀀스 재실행 (ADR-004 참조)
 - 리셋 원인은 RCC Reset Status Register에 기록 (또는 배터리 백업 SRAM)
@@ -123,7 +124,10 @@ Safe State는 결함의 심각도와 영향 범위에 따라 3개 레벨로 계�
 | MPU HardFault (반복/패턴)         | Level 3        | 공격적 침범 또는 심각한 소프트웨어 결함            |
 | QM 태스크 Deadline Miss           | Level 1        | 성능 저하, 통합자 통보                             |
 | QM 태스크 Deadline Miss (반복)    | Level 2        | 시스템 시간 보장 불가                              |
-| SafetyFunction Watchdog 미kick    | Level 3        | SafetyFunction 자체 결함 → 하드웨어 리셋           |
+| SafetyFunction Watchdog 미kick    | Level 3        | SafetyFunction 자체 결함 → 하드웨어 리셋 (백스톱 경로) |
+| 클럭 이상 감지 (주파수 편차 > ±5%, 1~2회) | Level 2 | 타이밍 보장 체계 훼손 — FSR-07-03 (v1.1 추가)      |
+| 클럭 이상 연속 CLOCK_FAULT_MAX(3)회 | Level 3       | 회복 불가 클럭 결함 → 에스컬레이션 (SSR-025, v1.1 추가) |
+| MPU 설정 무결성 불일치 (주기 검사)  | Level 1 (재설정 후) → 반복 시 Level 2 | 즉시 MPU 재초기화로 보호 복원 후 감시 강화 (SSR-009, v1.1 추가) |
 | 전원 이상 감지 (전압 범위 이탈)    | Level 3        | MPU 설정 소실 위험 → 즉각 리셋                    |
 | 부트 자가진단 실패 (ROM CRC)      | Level 3        | 코드 무결성 보장 불가 → 실행 금지                  |
 | 부트 자가진단 실패 (RAM March)     | Level 3        | 메모리 신뢰성 보장 불가 → 실행 금지                |
@@ -156,7 +160,7 @@ SafetyFunction이 결함 감지
     │       └─ QM Mailbox 역방향 채널 또는 MPU 허용 공유 플래그 사용
     │
     ├─ 4. 통합자 콜백: safety_degraded_cb(fault_code, fault_context) 호출
-    │       └─ 콜백은 AoU-07에 따라 통합자가 반드시 등록해야 함
+    │       └─ 콜백은 AoU-11에 따라 통합자가 반드시 등록해야 함
     │
     ├─ 5. Watchdog kick 계속 수행
     │
@@ -175,7 +179,7 @@ SafetyFunction이 중대 결함 감지 또는 Level 1 에스컬레이션
     │       └─ vTaskSuspendAll() 또는 SafetyFunction 전용 스케줄러 정지 API
     │
     ├─ 3. QM DMA 채널 정지:
-    │       └─ DMA 채널 Enable 비트 클리어 (AoU-04: SafetyFunction이 DMA 제어권 보유)
+    │       └─ DMA 채널 Enable 비트 클리어 (AoU-07 / D1(f): DMA 컨트롤러 설정은 SafetyFunction이 배타 소유)
     │
     ├─ 4. MPU 보호 재확인:
     │       └─ MPU 설정 레지스터 재검증 — 예상값과 불일치 시 Level 3으로 에스컬레이션
@@ -199,11 +203,13 @@ SafetyFunction이 중대 결함 감지 또는 Level 1 에스컬레이션
 ### 4.3 Level 3 진입 시퀀스
 
 ```
-[경로 A: 소프트웨어 감지 후 의도적 Level 3]
+[경로 A: 소프트웨어 감지 후 의도적 Level 3 — v1.1 (D2) 개정]
     │
     ├─ 1. 결함 로깅 (배터리 백업 SRAM 또는 리셋 전 Flash Write)
-    ├─ 2. Watchdog kick 중단 → 하드웨어 Watchdog 만료 대기
-    └─ 3. MCU 전체 리셋 (IWDG/WWDG 타임아웃 후 자동)
+    ├─ 2. 즉시 소프트웨어 리셋: SCB->AIRCR ← VECTKEY | SYSRESETREQ; __DSB()
+    │       └─ FTTI 비고: Watchdog 만료 대기 대비 최대 WATCHDOG_TIMEOUT_MS 지연 제거
+    └─ 3. 백스톱: 리셋 미발생 시 Watchdog kick 중단 + while(1)
+            → 하드웨어 Watchdog(IWDG/WWDG) 타임아웃 후 MCU 전체 리셋
 
 [경로 B: SafetyFunction 이상 — 하드웨어 자동]
     │
@@ -226,7 +232,7 @@ SafetyFunction이 중대 결함 감지 또는 Level 1 에스컬레이션
 | 레벨    | 최대 유지 기간                                    | 유지 종료 조건                               |
 |--------|--------------------------------------------------|---------------------------------------------|
 | Level 1 | 무제한 (결함 해소 또는 에스컬레이션 전까지)        | 결함 해소 확인 + 통합자 승인 OR 에스컬레이션   |
-| Level 2 | 무제한 (외부 재시작 또는 Watchdog 타임아웃 전까지) | 통합자의 명시적 재시작 명령 (AoU-08)          |
+| Level 2 | 무제한 (외부 재시작 또는 Watchdog 타임아웃 전까지) | 통합자의 명시적 재시작 명령 (AoU-09)          |
 | Level 3 | N/A (MCU 리셋 후 자동 재부팅)                     | 부팅 완료 — 새 동작 사이클 시작               |
 
 ### 5.2 Level 2 유지 중 출력 상태
@@ -253,9 +259,11 @@ Level 2에서의 회복은 **시스템 통합자의 명시적 승인 없이는 �
 
 Safe State의 완전한 구현을 위해 시스템 통합자가 반드시 이행해야 하는 전제조건(AoU)을 정의한다.
 
-### AoU-07: Safe State 콜백 등록 (신규)
+> **정식 AoU 레지스트리 (v1.1):** AoU ID의 유일한 권위 출처는 **OSR-AOU-001** (safety/doc/AOU.md)이다. 본 절의 두 항목은 v1.0에서 AoU-07/AoU-08로 부여되었으나, OSR-AOU-001에서 각각 **AoU-11/AoU-09**로 재부여되었다 (구 AoU-07은 "버스 마스터 구성 제한", 구 AoU-08은 "전원 감시 구성"과 ID가 충돌 — OSR-AOU-001 §4 레거시 매핑 참조).
 
-**ID:** AoU-07
+### AoU-11: Safe State 콜백 등록 (구 AoU-07)
+
+**ID:** AoU-11 (OSR-AOU-001)
 **제목:** Safe State 진입 콜백 함수 등록 의무
 **내용:**
 시스템 통합자는 OpenSafetyRTOS 초기화 시 다음 콜백 함수를 반드시 등록해야 한다:
@@ -273,11 +281,11 @@ safety_register_callbacks(&integrator_callbacks);
 
 콜백이 등록되지 않은 경우, OpenSafetyRTOS는 Level 2 진입 직후 Level 3(리셋)으로 에스컬레이션한다.
 
-**근거:** ISO 26262 Part 8 Cl.13.3 — SEooC 통합자는 전제조건(Assumption of Use)을 이행할 책임이 있다.
+**근거:** ISO 26262-10:2018 Cl.9 — SEooC 통합자는 전제조건(Assumption of Use)을 이행할 책임이 있다.
 
-### AoU-08: Safe State 회복 절차 구현 의무 (신규)
+### AoU-09: Safe State 회복 절차 구현 의무 (구 AoU-08)
 
-**ID:** AoU-08
+**ID:** AoU-09 (OSR-AOU-001)
 **제목:** Controlled Stop (Level 2) 회복 절차 구현 의무
 **내용:**
 시스템 통합자는 Level 2 Safe State에서 정상 동작으로 회복하는 절차를 반드시 구현해야 한다. 자동 회복(타이머 기반 재시작 등)은 금지된다.
@@ -302,9 +310,9 @@ safety_register_callbacks(&integrator_callbacks);
 | Safe State 레벨 결정 및 전이    | O                    |                        |
 | QM 스케줄러 정지                 | O                    |                        |
 | 통합자 콜백 호출 메커니즘         | O                    |                        |
-| 차량 레벨 Safe State 액션        |                      | O (AoU-07)            |
-| 출력 핀/버스 Safe 값 정의         |                      | O (AoU-07)            |
-| Level 2 회복 절차                |                      | O (AoU-08)            |
+| 차량 레벨 Safe State 액션        |                      | O (AoU-11)            |
+| 출력 핀/버스 Safe 값 정의         |                      | O (AoU-11)            |
+| Level 2 회복 절차                |                      | O (AoU-09)            |
 | 리셋 원인 기록 및 보고            |                      | O                      |
 | HARA 및 차량 레벨 안전 목표 정의  |                      | O                      |
 
@@ -318,9 +326,20 @@ safety_register_callbacks(&integrator_callbacks);
 | ADR-002      | MPU 파티션 전략                  | Level 2 격리 메커니즘          |
 | ADR-003      | SEooC 배포 전략                  | AoU 프레임워크 전체            |
 | ADR-004      | 부트 시퀀스                      | Level 3 리셋 후 재부팅 절차    |
+| ADR-005      | 특권/실행 컨텍스트 모델 (발행 2026-07-02) | D1/D2 아키텍처 결정 근거       |
+| OSR-AOU-001  | Assumptions of Use 레지스트리    | 정식 AoU ID 권위 출처          |
 | ARCHITECTURE | 시스템 아키텍처                  | FFI 분석, 메모리 파티션        |
 | SAFETY_PLAN  | 안전 계획                        | 전체 안전 프로세스 맥락        |
 
 ---
 
-*본 문서는 ISO 26262 Part 8 Cl.13 SEooC 요구사항에 따라 작성되었으며, 통합 프로젝트의 HARA 수행 시 Safe State 근거 문서로 활용된다.*
+## 9. 문서 이력
+
+| 버전 | 날짜 | 작성자 | 변경 내용 |
+|------|------|--------|----------|
+| 1.0 | 2026-04-18 | Agent-Safety | 최초 작성 — 3단계 Safe State 정의, 전이 조건 매트릭스, 진입 시퀀스, AoU-07/AoU-08(구 번호) 정의. Phase 1 승인. |
+| 1.1 | 2026-07-02 | Agent-Safety | 외부 평가 및 중앙 설계 결정 반영: ① 상태 표기 자체 모순("Approved (Draft…)") 해소. ② D2 — Level 3 1차 수단을 AIRCR.SYSRESETREQ 즉시 소프트웨어 리셋으로 변경(§2 다이어그램, §2.3, §4.3 경로 A), Watchdog 만료는 백스톱으로 강등, FTTI 비고(최대 WATCHDOG_TIMEOUT_MS 지연 제거) 추가. ③ §3.1 전이 조건 매트릭스에 클럭 이상(1~2회 → Level 2, 연속 3회 → Level 3; FSR-07-03/SSR-025 정합) 및 MPU 무결성 불일치(주기 검사, SSR-009) 행 추가. ④ AoU ID를 OSR-AOU-001 정식 ID로 전환 — 구 AoU-07(콜백)→AoU-11, 구 AoU-08(회복)→AoU-09, §4.2의 구 AoU-04(DMA)→AoU-07 (§1.2/§2.2/§4.1/§4.2/§5.1/§6/§7). ⑤ 표준 인용 정정 — "Part 4 Cl.8"/"Part 8 Cl.13"→ISO 26262-10:2018 Cl.9, 용어 "1.132"(2011식 번호)→ISO 26262-1:2018 3.131. ⑥ §8 참고 문서에 ADR-005, OSR-AOU-001 추가. |
+
+---
+
+*본 문서는 ISO 26262-10:2018 Cl.9 SEooC 요구사항에 따라 작성되었으며, 통합 프로젝트의 HARA 수행 시 Safe State 근거 문서로 활용된다.*

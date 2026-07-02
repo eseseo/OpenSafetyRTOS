@@ -83,8 +83,10 @@ endif()
 # ---------------------------------------------------------------------------
 # Linker flags
 # ---------------------------------------------------------------------------
+# NOTE: linking is driven through the gcc front-end, so linker-only options
+# must be passed with -Wl, (bare --gc-sections is rejected by the driver).
 set(CMAKE_EXE_LINKER_FLAGS_INIT
-    "${CPU_FLAGS_STR} -specs=nano.specs -specs=nosys.specs --gc-sections"
+    "${CPU_FLAGS_STR} -specs=nano.specs -specs=nosys.specs -Wl,--gc-sections"
 )
 
 # ---------------------------------------------------------------------------

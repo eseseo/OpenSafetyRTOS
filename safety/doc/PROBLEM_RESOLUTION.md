@@ -5,8 +5,9 @@
 | 문서 ID | OSR-PR-001 |
 | 표준 참조 | ISO 26262 Part 8 Cl.9 |
 | 작성일 | 2026-04-18 |
-| 버전 | 1.0 |
-| 상태 | Draft |
+| 개정일 | 2026-07-02 |
+| 버전 | 1.1 |
+| 상태 | Released (운영 중) |
 
 ---
 
@@ -201,3 +202,28 @@ GitHub Issue 등록 (label: class-A / class-B / class-C)
 
 ## Agent-QA 승인 (Class A만 해당)
 ```
+
+---
+
+## 7. 등록된 문제 이력 인덱스 (Registered Problem Records) — v1.1 신설
+
+> **파일 명명 주석 (v1.1):** §6.2의 `OSR-ISSUE-<GitHub Issue 번호>` 규칙은 GitHub Issue가
+> 생성된 경우에 적용한다. GitHub Issue 미연동 상태에서 등록된 기록은 내부 일련번호를
+> 사용하며, 추후 GitHub Issue 생성 시 상호 참조를 기록에 추가한다.
+
+| 기록 | 분류 | 제목 | 상태 |
+|------|------|------|------|
+| `issues/OSR-ISSUE-001.md` | Class B | MPU 특권 모델 갭 — ARMv7-M MPU 설정 잠금 부재, FFI 논증 무효화 위험 | Resolved (ADR-005) |
+| `issues/OSR-ISSUE-002.md` | Class B | HARA ASIL 결정 오류 (H-05/H-09/H-10, Part 3 Table 4) — 확인 검토 2회 통과 | Resolved (HARA v1.3, OSR-CR-HARA-003) |
+| `issues/OSR-ISSUE-003.md` | Class B | AoU ID 충돌/비일관 참조 — 정본 레지스트리 부재 | Resolved (OSR-AOU-001 v1.0) |
+| `issues/OSR-ISSUE-004.md` | Class B | OSR-CR-FSC-002 조건 C2 무단 완화 (FSR-08-04 누락, 27 vs 28 FSR) | **Open** |
+| `issues/OSR-ISSUE-005.md` | Class B | 확인 조치 독립성 요건 부적합 (ISO 26262-2:2018 Table 1) | **Open** |
+
+---
+
+## 8. 개정 이력 (Revision History)
+
+| 버전 | 날짜 | 작성자 | 변경 내용 |
+|------|------|--------|---------|
+| 1.0 | 2026-04-18 | Agent-Docs | 최초 작성 (Draft) |
+| 1.1 | 2026-07-02 | Agent-QA | §7 등록 문제 인덱스 신설 및 최초 Class B 기록 5건 등록 (OSR-ISSUE-001~005 — OSR-CR-ARCH-001 감사 결과 반영). GitHub Issue 미연동 시 파일 명명 주석 추가. 상태 Draft → Released. 참고: 2026-04-18/19 확인 검토의 Major 지적 사항들이 본 프로세스에 등록되지 않았던 것 자체가 프로세스 미이행이었음 (OSR-CR-ARCH-001 F-13) — 본 개정으로 소급 등록 |

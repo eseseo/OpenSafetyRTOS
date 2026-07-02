@@ -32,9 +32,11 @@ endif()
 # ---------------------------------------------------------------------------
 # Global compiler standards
 # ---------------------------------------------------------------------------
-set(CMAKE_C_STANDARD 11)
+# C99 project-wide: matches MISRA C:2012 (which targets C99) and the coding
+# standards in CONTRIBUTING.md.
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)   # -std=c11, not -std=gnu11
+set(CMAKE_C_EXTENSIONS OFF)   # -std=c99, not -std=gnu99
 
 # ---------------------------------------------------------------------------
 # Global compile definitions
@@ -61,6 +63,14 @@ add_subdirectory(hal)
 
 # ---------------------------------------------------------------------------
 # Testing (CTest)
+#
+# NOTE: unit tests are a STANDALONE host-compiled project (tests/unit has
+# its own project()) and are NOT part of this — potentially cross-compiled —
+# build tree. Run them with:
+#     cmake -S tests/unit -B build-host
+#     cmake --build build-host
+#     ctest --test-dir build-host --output-on-failure
+# Only integration tests (target/QEMU/HIL) hang off this build tree.
 # ---------------------------------------------------------------------------
 include(CTest)
 enable_testing()
