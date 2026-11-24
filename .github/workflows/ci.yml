@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    name: Host unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure and build host tests
+        run: |
+          cmake -S tests/unit -B build-host
+          cmake --build build-host --parallel
+      - name: Run host tests
+        run: ctest --test-dir build-host --output-on-failure --no-tests=error
+
+  cortex-m4:
+    name: Cortex-M4 build and QEMU boot
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Arm GCC, Newlib and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi qemu-system-arm
+      - name: Configure and build Cortex-M4 targets
+        run: |
+          cmake -S . -B build-arm \
+            -DTARGET_ARCH=arm-cortex-m \
+            -DSAFETY_ASIL_D=ON \
+            -DOPENSAFETY_QEMU_SMOKE=ON \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m4.cmake
+          cmake --build build-arm --parallel
+      - name: Run QEMU boot test
+        run: ctest --test-dir build-arm --output-on-failure --no-tests=error

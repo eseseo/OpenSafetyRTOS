@@ -2,7 +2,7 @@
 
 **An open-source automotive RTOS project developing toward ISO 26262 ASIL-D — with all safety evidence written and reviewed in public.**
 
-![Build Status](https://img.shields.io/badge/build-in%20progress-yellow)
+[![CI](https://github.com/eseseo/OpenSafetyRTOS/actions/workflows/ci.yml/badge.svg)](https://github.com/eseseo/OpenSafetyRTOS/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20MIT%20%2F%20CC%20BY%204.0-blue)
 ![ASIL](https://img.shields.io/badge/ASIL--D-target-orange)
 ![Standard](https://img.shields.io/badge/ISO%2026262-Part%202%2F6%2F8%2F9%2F10-orange)
@@ -173,7 +173,6 @@ Canonical registry (authoritative): [`safety/doc/AOU.md`](safety/doc/AOU.md) (OS
 OpenSafetyRTOS/
 ├── kernel/
 │   ├── CMakeLists.txt          # kernel umbrella target
-│   ├── freertos/               # PLANNED — FreeRTOS vendoring (MIT) not yet imported
 │   └── safety/                 # SafetyFunction (ASIL-D track, Apache 2.0)
 │       ├── include/safety/     # safety_types.h, crc32.h, mailbox.h,
 │       │                       #   safe_state.h, watchdog.h
@@ -189,7 +188,8 @@ OpenSafetyRTOS/
 │   └── toolchain-arm-cortex-m4.cmake
 ├── tests/
 │   ├── unit/                   # STANDALONE host-compiled unit tests (CTest)
-│   └── integration/            # stub — QEMU/HIL planned
+│   └── integration/
+│       └── qemu-cortex-m4/      # FreeRTOS MPU port boot test
 ├── safety/
 │   └── doc/                    # ISO 26262 safety evidence (CC BY 4.0)
 │       ├── HARA.md             # Hazard Analysis and Risk Assessment
@@ -206,26 +206,30 @@ OpenSafetyRTOS/
 │   └── ...
 └── .github/
     ├── CODEOWNERS              # @safety-team mandatory for safety/* PRs
+    ├── workflows/ci.yml        # Host unit tests, Cortex-M4 build, and QEMU boot test
     └── branch-strategy.md
 ```
 
-Still missing (planned): FreeRTOS import, linker scripts (`memory.ld`), startup assembly, `safety_boot()`/POST implementation, board bring-up, CI workflows, integration tests.
+Planned target work includes the shared MPU layout for SafetyFunction and FreeRTOS,
+`safety_boot()` and POST, STM32 startup and memory layout, and on-board validation.
 
 ---
 
 ## Safety Evidence Status
 
-All safety evidence is written in public and reviewed following ISO 26262 Part 2 Cl.8 confirmation measures — currently by an AI QA agent, with the independence limitations documented in [docs/TEAM.md](docs/TEAM.md).
+The table reflects the current document revisions and internal review records. The project
+tracks independent human review and assessment in the Safety Case. [Team roles and review
+independence](docs/TEAM.md) · [Safety Case](safety/doc/SAFETY_CASE.md)
 
 | Document | ID | Version | Status |
 |----------|----|---------|--------|
-| Hazard Analysis (HARA) | OSR-HARA-001 | v1.2 | 🟢 Conditionally approved |
-| Functional Safety Concept (FSC) | OSR-FSC-001 | v1.2 | 🟢 **Final approved** |
-| SW Safety Requirements (SSRS) | OSR-SSRS-001 | v1.0 | 🟡 Draft — QA review pending |
+| Hazard Analysis (HARA) | OSR-HARA-001 | v1.3 | Internal review complete, external ISA review pending |
+| Functional Safety Concept (FSC) | OSR-FSC-001 | v1.3 | Revised, confirmation re-review pending |
+| SW Safety Requirements (SSRS) | OSR-SSRS-001 | v1.2 | Revised, confirmation re-review pending |
 | Assumptions of Use registry | OSR-AOU-001 | v1.0 | 🟢 Released |
-| Safety Case | OSR-SC-001 | v0.4 | 🟡 In progress |
-| Safety Plan | OSR-SP-001 | v1.0 | 🟢 Approved |
-| Tool Qualification Plan | OSR-TQ-001 | v1.0 | 🟢 Approved |
+| Safety Case | OSR-SC-001 | v0.6 | In progress |
+| Safety Plan | OSR-SP-001 | v1.1 | In review |
+| Tool Qualification Plan | OSR-TQ-001 | v1.1 | Released |
 
 QA review records: `safety/doc/reviews/OSR-CR-*.md`
 
@@ -233,21 +237,24 @@ QA review records: `safety/doc/reviews/OSR-CR-*.md`
 
 ## Quick Start
 
-> **Note:** hardware bring-up is still in development — the cross build currently
-> produces the SafetyFunction and arch static libraries only (no bootable image yet).
+CI runs host unit tests, builds the Cortex-M4 targets, and boots the FreeRTOS test image
+in QEMU on pull requests and pushes to `main`.
 
-### Cross build (ARM Cortex-M4; requires arm-none-eabi-gcc)
+### Cross build for ARM Cortex-M4
+
+Use CMake 3.20 or newer and Arm GNU Toolchain (`arm-none-eabi-gcc` with Newlib headers).
 
 ```bash
 git clone https://github.com/eseseo/opensafetyrtos.git
 cd opensafetyrtos
 
-cmake -B build \
+cmake -S . -B build-arm \
   -DTARGET_ARCH=arm-cortex-m \
   -DSAFETY_ASIL_D=ON \
+  -DBUILD_TESTING=OFF \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m4.cmake
 
-cmake --build build
+cmake --build build-arm
 ```
 
 ### Host unit tests (no cross toolchain required)
@@ -257,8 +264,27 @@ The unit tests are a standalone host-compiled project (same sources as the targe
 ```bash
 cmake -S tests/unit -B build-host
 cmake --build build-host
-ctest --test-dir build-host --output-on-failure
+ctest --test-dir build-host --output-on-failure --no-tests=error
 ```
+
+### FreeRTOS boot test in QEMU
+
+Install `qemu-system-arm` and use an Arm GNU Toolchain with Newlib headers and libraries.
+CMake fetches the pinned FreeRTOS-Kernel V11.3.1 source on first configuration.
+
+```bash
+cmake -S . -B build-qemu \
+  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m4.cmake \
+  -DOPENSAFETY_QEMU_SMOKE=ON
+cmake --build build-qemu --target osr_qemu_cortex_m4
+ctest --test-dir build-qemu --output-on-failure --no-tests=error
+```
+
+The ELF runs on QEMU's MPS2 AN386 Cortex-M4 model. The test checks startup memory
+initialization, the FreeRTOS MPU port, and an unprivileged task blocking and resuming
+through the scheduler. The test image uses the upstream FreeRTOS MPU layout. Combining
+it with SafetyFunction requires reconciling the port's static and per-task MPU regions
+with the SafetyFunction shadow configuration. [MPU partition strategy](docs/ADR-002-mpu-partition-strategy.md)
 
 ---
 
@@ -267,7 +293,7 @@ ctest --test-dir build-host --output-on-failure
 | Component | License |
 |-----------|---------|
 | SafetyFunction layer (`safety/`, `kernel/safety/`, `arch/`) | Apache License 2.0 |
-| FreeRTOS (`kernel/freertos/`, once vendored) | MIT License |
+| FreeRTOS-Kernel (fetched for the QEMU boot test) | MIT License |
 | Safety evidence documents (`safety/doc/`) | CC BY 4.0 |
 
 The CC BY 4.0 license on the evidence documents means you can use, adapt, and redistribute the safety evidence for your own products — as long as you credit OpenSafetyRTOS.

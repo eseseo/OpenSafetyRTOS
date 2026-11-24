@@ -45,7 +45,7 @@ This track covers FreeRTOS wrappers, board support packages, example application
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
-4. Run the test suite locally: `cmake --build build --target test`
+4. Run the [host unit tests](README.md#host-unit-tests-no-cross-toolchain-required).
 5. Open a pull request against `main`
 
 ---

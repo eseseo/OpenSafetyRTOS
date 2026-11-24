@@ -73,7 +73,11 @@ add_subdirectory(hal)
 # Only integration tests (target/QEMU/HIL) hang off this build tree.
 # ---------------------------------------------------------------------------
 include(CTest)
-enable_testing()
+option(OPENSAFETY_QEMU_SMOKE "Build the Cortex-M4 FreeRTOS boot test for QEMU" OFF)
+
+if(OPENSAFETY_QEMU_SMOKE AND NOT BUILD_TESTING)
+    message(FATAL_ERROR "OPENSAFETY_QEMU_SMOKE requires BUILD_TESTING=ON.")
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
