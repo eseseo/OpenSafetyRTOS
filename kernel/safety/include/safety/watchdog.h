@@ -12,7 +12,7 @@
  *
  * Hardware access is injected via safety_wdg_ops_t (host-testable logic).
  *
- * @safety_req SSR-030 (watchdog management), SSR-031 (kick policy)
+ * @safety_req SSR-002-WDG (software kick policy)
  */
 #ifndef SAFETY_WATCHDOG_H
 #define SAFETY_WATCHDOG_H
@@ -28,7 +28,7 @@ extern "C" {
 #define SAFETY_TASK_PERIOD_MS  (10U)
 #endif
 
-/** Interval between watchdog kicks (one kick per completed cycle pair). */
+/** Interval between watchdog kicks (configured maximum interval). */
 #ifndef SAFETY_WDG_KICK_PERIOD_MS
 #define SAFETY_WDG_KICK_PERIOD_MS  (SAFETY_TASK_PERIOD_MS / 2U)
 #endif
@@ -38,7 +38,7 @@ extern "C" {
 #define SAFETY_WDG_TIMEOUT_MS  (100U)
 #endif
 
-/* Compile-time timing sanity (SSR-031):
+/* Compile-time timing sanity (SSR-002-WDG):
  * the kick interval must not exceed half the safety cycle period, and
  * kicks must arrive with margin well inside the hardware timeout. */
 SAFETY_STATIC_ASSERT(SAFETY_WDG_KICK_PERIOD_MS <= (SAFETY_TASK_PERIOD_MS / 2U),
@@ -74,8 +74,7 @@ safety_status_t safety_wdg_init(safety_wdg_t *wdg,
 /**
  * @brief Report that a monitored check passed in the current cycle.
  * @param checkpoint_bit One-hot bit within required_mask.
- * @return SAFETY_OK; SAFETY_ERR_PARAM if the bit is not a subset of
- *         required_mask or is zero.
+ * @return SAFETY_OK; SAFETY_ERR_PARAM unless exactly one required bit is set.
  */
 safety_status_t safety_wdg_checkpoint(safety_wdg_t *wdg,
                                       uint32_t checkpoint_bit);

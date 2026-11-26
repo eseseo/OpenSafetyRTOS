@@ -2,7 +2,7 @@
  * @file test_watchdog.c
  * @brief Watchdog kick-policy tests (checkpoint bitmask).
  *
- * Traceability: SSR-030, SSR-031. Key property: NO kick when any required
+ * Traceability: SSR-002-WDG. Key property: NO kick when any required
  * checkpoint was missed in the cycle.
  */
 #include "unit_test.h"
@@ -42,6 +42,10 @@ int main(void)
         UT_CHECK(safety_wdg_init(&wdg, &bad, CP_ALL) == SAFETY_ERR_PARAM);
     }
     UT_CHECK(safety_wdg_init(&wdg, &ops, CP_ALL) == SAFETY_OK);
+
+    UT_CHECK(safety_wdg_checkpoint(&wdg, CP_ALL) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_wdg_cycle_end(&wdg) == SAFETY_ERR_STATE);
+    UT_CHECK_EQ_U32(tb.kicks, 0U);
 
     /* --- all checkpoints reached -> kick -------------------------------- */
     UT_CHECK(safety_wdg_checkpoint(&wdg, CP_MAILBOX) == SAFETY_OK);

@@ -178,7 +178,9 @@ safety_status_t safety_mpu_shadow_build(
 {
     safety_status_t status = SAFETY_ERR_PARAM;
 
-    if ((shadow != NULL) && (regions != NULL))
+    if ((shadow != NULL) && (regions != NULL) &&
+        ((ctrl & SAFETY_MPU_CTRL_ENABLE) != 0U) &&
+        ((ctrl & ~(SAFETY_MPU_CTRL_ENABLE | SAFETY_MPU_CTRL_HFNMIENA)) == 0U))
     {
         uint32_t i;
 
@@ -241,12 +243,32 @@ static void mpu_program(const safety_mpu_ops_t *ops,
     }
 }
 
+/* SSR-009-MPU: compare actual hardware after programming and during each check. */
+static bool mpu_matches(const safety_mpu_ops_t *ops, const safety_mpu_shadow_t *shadow)
+{
+    bool match = true;
+    uint32_t i;
+    for (i = 0U; i < SAFETY_MPU_REGION_COUNT; i++)
+    {
+        uint32_t base = 0U;
+        uint32_t rasr = 0U;
+        ops->read_region(ops->ctx, i, &base, &rasr);
+        if (((base & MPU_RBAR_ADDR_MASK) != (shadow->region[i].base & MPU_RBAR_ADDR_MASK)) ||
+            (rasr != shadow->region[i].rasr))
+        {
+            match = false;
+        }
+    }
+    return (ops->read_ctrl(ops->ctx) == shadow->ctrl) && match;
+}
+
 safety_status_t safety_mpu_init(const safety_mpu_ops_t *ops,
                                 const safety_mpu_shadow_t *shadow)
 {
     safety_status_t status = SAFETY_ERR_PARAM;
 
     if ((ops != NULL) && (shadow != NULL) && (ops->read_type != NULL) &&
+        (ops->read_region != NULL) && (ops->read_ctrl != NULL) &&
         (ops->write_region != NULL) && (ops->write_ctrl != NULL))
     {
         status = safety_mpu_shadow_verify(shadow);
@@ -257,14 +279,14 @@ safety_status_t safety_mpu_init(const safety_mpu_ops_t *ops,
                                 MPU_TYPE_DREGION_SHIFT) &
                                MPU_TYPE_DREGION_MASK;
 
-            if (dregion < SAFETY_MPU_REGION_COUNT)
+            if (dregion != SAFETY_MPU_REGION_COUNT)
             {
-                status = SAFETY_ERR_STATE;  /* hardware lacks MPU regions */
+                status = SAFETY_ERR_STATE;  /* Unmodelled higher regions can override this map. */
             }
             else
             {
                 mpu_program(ops, shadow);
-                status = SAFETY_OK;
+                status = mpu_matches(ops, shadow) ? SAFETY_OK : SAFETY_ERR_INTEGRITY;
             }
         }
     }
@@ -285,29 +307,7 @@ safety_status_t safety_mpu_integrity_check(const safety_mpu_ops_t *ops,
 
         if (status == SAFETY_OK)
         {
-            bool match = true;
-            uint32_t i;
-
-            for (i = 0U; i < SAFETY_MPU_REGION_COUNT; i++)
-            {
-                uint32_t base = 0U;
-                uint32_t rasr = 0U;
-
-                ops->read_region(ops->ctx, i, &base, &rasr);
-                if (((base & MPU_RBAR_ADDR_MASK) !=
-                     (shadow->region[i].base & MPU_RBAR_ADDR_MASK)) ||
-                    (rasr != shadow->region[i].rasr))
-                {
-                    match = false;
-                }
-            }
-
-            if (ops->read_ctrl(ops->ctx) != shadow->ctrl)
-            {
-                match = false;
-            }
-
-            if (!match)
+            if (!mpu_matches(ops, shadow))
             {
                 /* Detected interference with the live MPU configuration:
                  * restore immediately, then report so the caller raises a

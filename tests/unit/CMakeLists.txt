@@ -31,6 +31,10 @@ add_compile_options(-Wall -Wextra -Wconversion -Wshadow -Wundef)
 add_library(osr_under_test STATIC
     ${OSR_ROOT}/kernel/safety/src/crc32.c
     ${OSR_ROOT}/kernel/safety/src/mailbox.c
+    ${OSR_ROOT}/kernel/safety/src/dma_guard.c
+    ${OSR_ROOT}/kernel/safety/src/reset_history.c
+    ${OSR_ROOT}/kernel/safety/src/ivt_monitor.c
+    ${OSR_ROOT}/kernel/safety/src/channel_monitor.c
     ${OSR_ROOT}/kernel/safety/src/safe_state.c
     ${OSR_ROOT}/kernel/safety/src/watchdog.c
     ${OSR_ROOT}/arch/arm-cortex-m/src/mpu.c
@@ -55,3 +59,8 @@ osr_add_unit_test(test_safe_state)
 osr_add_unit_test(test_watchdog)
 osr_add_unit_test(test_mpu)
 osr_add_unit_test(test_fault)
+osr_add_unit_test(test_channel_monitor)
+osr_add_unit_test(test_ivt)
+
+osr_add_unit_test(test_dma_guard)
+osr_add_unit_test(test_reset_history)

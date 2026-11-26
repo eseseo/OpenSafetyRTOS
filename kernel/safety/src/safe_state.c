@@ -9,13 +9,13 @@
 static void ss_do_level2(safety_ss_t *ss)
 {
     ss->level = SAFETY_SS_LEVEL2_CONTROLLED_STOP;
-    if (ss->ops->suspend_qm != NULL)
-    {
-        ss->ops->suspend_qm(ss->ops->ctx);
-    }
     if (ss->ops->app_notify != NULL)
     {
         ss->ops->app_notify(ss->ops->ctx, SAFETY_SS_LEVEL2_CONTROLLED_STOP);
+    }
+    if (ss->ops->suspend_qm != NULL)
+    {
+        ss->ops->suspend_qm(ss->ops->ctx);
     }
 }
 

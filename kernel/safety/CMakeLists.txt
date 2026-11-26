@@ -14,6 +14,10 @@
 add_library(opensafety_safety_function STATIC
     src/crc32.c
     src/mailbox.c
+    src/dma_guard.c
+    src/reset_history.c
+    src/ivt_monitor.c
+    src/channel_monitor.c
     src/safe_state.c
     src/watchdog.c
 )

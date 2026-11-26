@@ -76,6 +76,9 @@ int main(void)
     UT_CHECK(safety_mailbox_rx_init(&rx, NULL) == SAFETY_ERR_PARAM);
     {
         safety_mailbox_ops_t bad = ops;
+        bad.range_check = NULL;
+        UT_CHECK(safety_mailbox_rx_init(&rx, &bad) == SAFETY_ERR_PARAM);
+        bad = ops;
         bad.get_tick_ms = NULL;
         UT_CHECK(safety_mailbox_rx_init(&rx, &bad) == SAFETY_ERR_PARAM);
         bad = ops;

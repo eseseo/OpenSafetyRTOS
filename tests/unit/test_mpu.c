@@ -51,6 +51,12 @@ static void sim_write_ctrl(void *ctx, uint32_t ctrl)
     ((sim_mpu_t *)ctx)->ctrl = ctrl;
 }
 
+static void ignore_ctrl_write(void *ctx, uint32_t ctrl)
+{
+    (void)ctx;
+    (void)ctrl;
+}
+
 static uint32_t sim_read_ctrl(void *ctx)
 {
     return ((sim_mpu_t *)ctx)->ctrl;
@@ -193,6 +199,18 @@ int main(void)
         safety_mpu_ops_t ops0 = ops;
         ops0.ctx = &sim0;
         UT_CHECK(safety_mpu_init(&ops0, &shadow) == SAFETY_ERR_STATE);
+    }
+
+    {
+        safety_mpu_ops_t stuck = ops;
+        stuck.write_ctrl = ignore_ctrl_write;
+        sim.ctrl = 0U;
+        UT_CHECK(safety_mpu_init(&stuck, &shadow) == SAFETY_ERR_INTEGRITY);
+        sim.type = 16U << 8;
+        UT_CHECK(safety_mpu_init(&ops, &shadow) == SAFETY_ERR_STATE);
+        sim.type = 8U << 8;
+        UT_CHECK(safety_mpu_init(&ops, &shadow) == SAFETY_OK);
+        UT_CHECK(safety_mpu_shadow_build(&shadow, regions, 0U) == SAFETY_ERR_PARAM);
     }
 
     /* Corrupted shadow is refused for programming. */

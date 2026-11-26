@@ -55,6 +55,12 @@ SECTIONS
     } > SRAM AT > BOOT
     __data_load__ = LOADADDR(.data);
 
+    .image_crc :
+    {
+        __image_crc = .;
+        LONG(0)
+    } > BOOT
+
     .bss (NOLOAD) :
     {
         __bss_start__ = .;
@@ -62,10 +68,23 @@ SECTIONS
         . = ALIGN(4);
         __bss_end__ = .;
     } > SRAM
+
+    .noinit (NOLOAD) :
+    {
+        __retained_start__ = .;
+        *(.noinit)
+        . = ALIGN(4);
+        __ram_used_end__ = .;
+    } > SRAM
 }
 
 ASSERT(__privileged_functions_used__ <= __privileged_functions_end__,
        "FreeRTOS privileged code exceeds its MPU region")
 ASSERT(__privileged_data_used__ <= __privileged_data_end__,
        "FreeRTOS privileged data exceeds its MPU region")
-ASSERT(__bss_end__ <= __stack_top__ - __stack_size__, "SRAM overlaps the reset stack")
+ASSERT(__ram_used_end__ <= __stack_top__ - __stack_size__, "SRAM overlaps the reset stack")
+
+ASSERT(osr_vectors_end - osr_vectors == 48 * 4, "AN386 requires 48 vector entries")
+ASSERT((osr_vectors & 255) == 0, "AN386 vector table alignment")
+
+ASSERT(__image_crc == LOADADDR(.data) + SIZEOF(.data), "CRC follows the last load byte")

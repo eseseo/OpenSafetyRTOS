@@ -143,11 +143,11 @@ safety_status_t safety_mpu_shadow_verify(const safety_mpu_shadow_t *shadow);
 /**
  * @brief Program the MPU from a verified shadow and enable it.
  *
- * Order: verify shadow CRC -> check MPU_TYPE.DREGION >= 8 -> program all
- * regions -> write CTRL -> barrier.
+ * Order: verify shadow CRC -> check MPU_TYPE.DREGION == SAFETY_MPU_REGION_COUNT -> program all
+ * regions -> write CTRL -> barrier -> verify live register values.
  *
- * @return SAFETY_OK, SAFETY_ERR_PARAM, SAFETY_ERR_INTEGRITY (shadow CRC),
- *         or SAFETY_ERR_STATE (hardware lacks 8 MPU regions).
+ * @return SAFETY_OK, SAFETY_ERR_PARAM, SAFETY_ERR_INTEGRITY (shadow CRC or hardware readback),
+ *         or SAFETY_ERR_STATE (hardware region count differs from the shadow layout).
  */
 safety_status_t safety_mpu_init(const safety_mpu_ops_t *ops,
                                 const safety_mpu_shadow_t *shadow);

@@ -31,7 +31,8 @@ typedef enum
     SAFETY_ERR_RANGE      = 0x3C,  /**< Value/range/schema check failed */
     SAFETY_ERR_PARAM      = 0x4D,  /**< Invalid parameter (NULL, size, ...) */
     SAFETY_ERR_STATE      = 0x5E,  /**< Operation invalid in current state */
-    SAFETY_ERR_INTEGRITY  = 0x6F   /**< Configuration integrity violation */
+    SAFETY_ERR_INTEGRITY  = 0x6F,  /**< Configuration integrity violation */
+    SAFETY_ERR_DMA_VIOLATION = 0x70  /**< Transfer outside the permitted windows */
 } safety_status_t;
 
 /**

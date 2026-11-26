@@ -1,5 +1,6 @@
 include(FetchContent)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(QEMU_SYSTEM_ARM qemu-system-arm REQUIRED)
 
 add_library(freertos_config INTERFACE)
@@ -17,20 +18,46 @@ FetchContent_Declare(freertos_kernel
 FetchContent_MakeAvailable(freertos_kernel)
 
 set(linker_script ${CMAKE_CURRENT_SOURCE_DIR}/memory.ld)
-add_executable(osr_qemu_cortex_m4 startup.S boot_test.c)
-set_target_properties(osr_qemu_cortex_m4 PROPERTIES
-    SUFFIX ".elf"
-    LINK_DEPENDS "${linker_script}"
-)
-target_link_libraries(osr_qemu_cortex_m4 PRIVATE freertos_kernel)
-target_link_options(osr_qemu_cortex_m4 PRIVATE
-    -nostartfiles
-    "LINKER:-T,${linker_script}"
-    "LINKER:-z,noexecstack"
-)
+function(add_an386_image target)
+    add_executable(${target} startup.S boot_post.S boot_test.c ${PROJECT_SOURCE_DIR}/hal/mps2/safety_timer.c
+        ${PROJECT_SOURCE_DIR}/hal/mps2/safety_io.c)
+    target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/hal/mps2)
+    set_target_properties(${target} PROPERTIES SUFFIX ".elf" LINK_DEPENDS "${linker_script};${CMAKE_CURRENT_SOURCE_DIR}/image_crc.py")
+    target_link_libraries(${target} PRIVATE freertos_kernel opensafety_safety_function)
+    target_link_options(${target} PRIVATE -nostartfiles "LINKER:-T,${linker_script}"
+        "LINKER:-z,noexecstack")
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/image_crc.py"
+            "${CMAKE_OBJCOPY}" $<TARGET_FILE:${target}> VERBATIM)
+endfunction()
 
-add_test(NAME qemu_cortex_m4_boot
-    COMMAND "${QEMU_SYSTEM_ARM}" -machine mps2-an386 -display none -serial none -monitor none
-        -semihosting-config enable=on,target=native -kernel $<TARGET_FILE:osr_qemu_cortex_m4>
-)
-set_tests_properties(qemu_cortex_m4_boot PROPERTIES TIMEOUT 15)
+function(add_an386_test target test_name)
+    add_an386_image(${target})
+    add_test(NAME ${test_name}
+        COMMAND "${QEMU_SYSTEM_ARM}" -machine mps2-an386 -display none -serial none -monitor none
+            -semihosting-config enable=on,target=native -kernel $<TARGET_FILE:${target}>
+    )
+    set_tests_properties(${test_name} PROPERTIES TIMEOUT 15)
+endfunction()
+
+add_an386_test(osr_qemu_cortex_m4 qemu_cortex_m4_boot)
+add_an386_test(osr_qemu_ivt_reset qemu_ivt_level3_reset)
+target_compile_definitions(osr_qemu_ivt_reset PRIVATE OSR_TEST_IVT_RESET=1)
+
+add_an386_test(osr_qemu_stall_reset qemu_stall_output_watchdog_reset)
+target_compile_definitions(osr_qemu_stall_reset PRIVATE OSR_TEST_STALL_RESET=1)
+
+add_an386_test(osr_qemu_device_fault qemu_qm_timer_access_denied)
+target_compile_definitions(osr_qemu_device_fault PRIVATE OSR_TEST_DEVICE_FAULT=1)
+
+add_an386_image(osr_qemu_ram_post)
+target_compile_definitions(osr_qemu_ram_post PRIVATE OSR_TEST_RAM_POST=1)
+add_test(NAME qemu_ram_post_rejection COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/post_rejection.py" "${QEMU_SYSTEM_ARM}" "${CMAKE_OBJCOPY}"
+    $<TARGET_FILE:osr_qemu_ram_post> SRAM)
+add_test(NAME qemu_rom_post_rejection COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/post_rejection.py" "${QEMU_SYSTEM_ARM}" "${CMAKE_OBJCOPY}"
+    $<TARGET_FILE:osr_qemu_cortex_m4> image)
+
+add_an386_test(osr_qemu_reset_history qemu_consecutive_watchdog_resets)
+target_compile_definitions(osr_qemu_reset_history PRIVATE OSR_TEST_RESET_HISTORY=1)

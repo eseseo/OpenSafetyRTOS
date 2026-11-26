@@ -59,9 +59,8 @@ static safety_status_t mailbox_validate(const safety_mailbox_rx_t *rx,
             status = SAFETY_ERR_STALE;
         }
         /* (3) Value range check against the expected schema */
-        else if ((rx->ops->range_check != NULL) &&
-                 (!rx->ops->range_check(rx->ops->ctx, snap->data,
-                                        snap->data_len, snap->schema_id)))
+        else if (!rx->ops->range_check(rx->ops->ctx, snap->data,
+                                       snap->data_len, snap->schema_id))
         {
             status = SAFETY_ERR_RANGE;
         }
@@ -80,7 +79,8 @@ safety_status_t safety_mailbox_rx_init(safety_mailbox_rx_t *rx,
     safety_status_t status = SAFETY_ERR_PARAM;
 
     if ((rx != NULL) && (ops != NULL) &&
-        (ops->get_tick_ms != NULL) && (ops->escalate_level2 != NULL))
+        (ops->get_tick_ms != NULL) && (ops->range_check != NULL) &&
+        (ops->escalate_level2 != NULL))
     {
         rx->ops = ops;
         rx->consecutive_failures = 0U;

@@ -64,8 +64,7 @@ typedef struct
     uint32_t (*get_tick_ms)(void *ctx);
     /**
      * Application/schema-specific value range check.
-     * Return true if data conforms to schema_id. May be NULL only if all
-     * schemas are unchecked by design (not recommended; SSR-015-MBX).
+     * Required by SSR-017-MBX. Accept only recognized schemas and valid values.
      */
     bool (*range_check)(void *ctx, const uint8_t *data, uint32_t len,
                         uint32_t schema_id);

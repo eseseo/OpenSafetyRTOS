@@ -2,7 +2,7 @@
  * @file watchdog.c
  * @brief Watchdog kick-policy implementation (checkpoint bitmask).
  *
- * @safety_req SSR-030, SSR-031
+ * @safety_req SSR-002-WDG
  */
 #include "safety/watchdog.h"
 
@@ -30,7 +30,8 @@ safety_status_t safety_wdg_checkpoint(safety_wdg_t *wdg,
 {
     safety_status_t status = SAFETY_ERR_PARAM;
 
-    if ((wdg != NULL) && (checkpoint_bit != 0U) &&
+    if ((wdg != NULL) && (wdg->ops != NULL) && (checkpoint_bit != 0U) &&
+        ((checkpoint_bit & (checkpoint_bit - 1U)) == 0U) &&
         ((checkpoint_bit & ~wdg->required_mask) == 0U))
     {
         wdg->reached_mask |= checkpoint_bit;
@@ -44,11 +45,12 @@ safety_status_t safety_wdg_cycle_end(safety_wdg_t *wdg)
 {
     safety_status_t status = SAFETY_ERR_PARAM;
 
-    if ((wdg != NULL) && (wdg->ops != NULL))
+    if ((wdg != NULL) && (wdg->ops != NULL) && (wdg->ops->hw_kick != NULL) &&
+        (wdg->required_mask != 0U))
     {
         if (wdg->reached_mask == wdg->required_mask)
         {
-            /* All monitored checks passed this cycle: kick (SSR-031). */
+            /* All monitored checks passed this cycle: kick (SSR-002-WDG). */
             wdg->ops->hw_kick(wdg->ops->ctx);
             wdg->missed_cycles = 0U;
             status = SAFETY_OK;
@@ -56,7 +58,10 @@ safety_status_t safety_wdg_cycle_end(safety_wdg_t *wdg)
         else
         {
             /* Withhold the kick: hardware watchdog expiry -> Level 3. */
-            wdg->missed_cycles++;
+            if (wdg->missed_cycles < UINT32_MAX)
+            {
+                wdg->missed_cycles++;
+            }
             status = SAFETY_ERR_STATE;
         }
         wdg->reached_mask = 0U;

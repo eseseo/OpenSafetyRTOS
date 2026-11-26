@@ -269,22 +269,50 @@ ctest --test-dir build-host --output-on-failure --no-tests=error
 
 ### FreeRTOS boot test in QEMU
 
-Install `qemu-system-arm` and use an Arm GNU Toolchain with Newlib headers and libraries.
+Install Python 3 and `qemu-system-arm`, and use an Arm GNU Toolchain with Newlib headers and libraries.
 CMake fetches the pinned FreeRTOS-Kernel V11.3.1 source on first configuration.
 
 ```bash
 cmake -S . -B build-qemu \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-arm-cortex-m4.cmake \
   -DOPENSAFETY_QEMU_SMOKE=ON
-cmake --build build-qemu --target osr_qemu_cortex_m4
+cmake --build build-qemu --parallel
 ctest --test-dir build-qemu --output-on-failure --no-tests=error
 ```
 
-The ELF runs on QEMU's MPS2 AN386 Cortex-M4 model. The test checks startup memory
-initialization, the FreeRTOS MPU port, and an unprivileged task blocking and resuming
-through the scheduler. The test image uses the upstream FreeRTOS MPU layout. Combining
-it with SafetyFunction requires reconciling the port's static and per-task MPU regions
-with the SafetyFunction shadow configuration. [MPU partition strategy](docs/ADR-002-mpu-partition-strategy.md)
+The AN386 test boots an unprivileged FreeRTOS publisher and validates its mailbox
+from a priority-zero CMSDK Timer0 interrupt every 2 ms. Timer1 supplies elapsed time.
+While the privileged test task holds a FreeRTOS critical section, the safety monitor
+accepts the initial message, rejects its stale timestamp, enters Level 1 and then
+latches Level 2 on the third consecutive failure. After leaving the critical section,
+the test suspends the publisher and checks its scheduler state.
+
+Each monitored interrupt checks VTOR and the CRC of all 48 active vectors.
+A second firmware test switches to an identical table at another address and
+observes Level 3 followed by a CPU restart. At reset, a stack-free March C-
+tests the configured 64 KiB SRAM window except the retained reset witnesses.
+The boot code verifies the load image against a CRC stamped after linking. Two
+negative tests require a specific rejection and exit status before scheduler startup,
+one for a changed load byte and one for a failed March readback. The CRC detects
+accidental corruption. Authenticating a distributed image requires a separate trust root.
+
+The AN386 fixture reserves the peripheral MPU window for privileged code before
+the publisher starts. A test verifies a precise MemManage fault on an unprivileged
+timer read and observes the Level 3 restart. A separate test holds the scheduler
+in a critical section permanently. IRQ8 clears the modeled output enable (FPGA LED0)
+at Level 2 and checks its readback while continuing checkpoint-gated watchdog service.
+The test then stalls IRQ8. The CMSDK watchdog raises NMI and resets the CPU on the
+second timeout. A retained witness distinguishes this restart from initial boot.
+
+A repeated-reset test exercises three watchdog resets before QM startup. The first
+two warm boots enter controlled stop. The third requests an emergency reset,
+and the subsequent software restart verifies the retained Level 3 latch.
+The test derives the watchdog cause from a retained NMI witness.
+
+The MPS2 timers and watchdog share the modeled clock. This evidence covers CPU stalls
+while that clock runs. Oscillator loss, an external watchdog, electrical output
+behavior and worst-case reaction time remain open for a future product configuration.
+[MPU partition strategy](docs/ADR-002-mpu-partition-strategy.md)
 
 ---
 

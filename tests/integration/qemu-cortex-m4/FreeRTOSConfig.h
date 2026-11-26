@@ -26,6 +26,8 @@
 #define configKERNEL_INTERRUPT_PRIORITY          0xE0U
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY     0x80U
 
+#define INCLUDE_vTaskSuspend                     1
+#define INCLUDE_eTaskGetState                    1
 #define INCLUDE_vTaskDelay                       1
 
 void osr_boot_test_fail(void) __attribute__((noreturn));
