@@ -131,5 +131,10 @@ int main(void)
     UT_CHECK(safety_ss_enter(&ss, (safety_ss_level_t)7) == SAFETY_ERR_PARAM);
     UT_CHECK(safety_ss_get_level(NULL) == SAFETY_SS_LEVEL3_EMERGENCY_RESET);
 
+    safety_ss_t uninitialized = { 0 };
+    UT_CHECK(safety_ss_enter(&uninitialized, SAFETY_SS_LEVEL1_DEGRADED) == SAFETY_ERR_PARAM);
+    safety_ss_report_cycle_ok(NULL);
+    UT_CHECK(safety_ss_get_level(&ss) == SAFETY_SS_LEVEL3_EMERGENCY_RESET);
+
     return ut_summary("safe_state");
 }

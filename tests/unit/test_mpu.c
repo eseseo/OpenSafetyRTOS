@@ -252,5 +252,37 @@ int main(void)
     UT_CHECK(safety_mpu_shadow_verify(NULL) == SAFETY_ERR_PARAM);
     UT_CHECK(safety_mpu_background_region(NULL) == SAFETY_ERR_PARAM);
 
+    UT_CHECK(safety_mpu_size_field(32U, NULL) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_shadow_build(NULL, regions, ctrl) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_shadow_build(&shadow, NULL, ctrl) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_shadow_build(&shadow, regions, ctrl | SAFETY_MPU_CTRL_PRIVDEFENA)
+             == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_shadow_verify(&shadow) == SAFETY_OK);
+
+    /* Remove one required register operation at a time. */
+    safety_mpu_ops_t missing = ops;
+    missing.read_type = NULL;
+    UT_CHECK(safety_mpu_init(&missing, &shadow) == SAFETY_ERR_PARAM);
+
+    missing = ops;
+    missing.read_region = NULL;
+    UT_CHECK(safety_mpu_init(&missing, &shadow) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_integrity_check(&missing, &shadow) == SAFETY_ERR_PARAM);
+
+    missing = ops;
+    missing.read_ctrl = NULL;
+    UT_CHECK(safety_mpu_init(&missing, &shadow) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_integrity_check(&missing, &shadow) == SAFETY_ERR_PARAM);
+
+    missing = ops;
+    missing.write_region = NULL;
+    UT_CHECK(safety_mpu_init(&missing, &shadow) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_integrity_check(&missing, &shadow) == SAFETY_ERR_PARAM);
+
+    missing = ops;
+    missing.write_ctrl = NULL;
+    UT_CHECK(safety_mpu_init(&missing, &shadow) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mpu_integrity_check(&missing, &shadow) == SAFETY_ERR_PARAM);
+
     return ut_summary("mpu");
 }

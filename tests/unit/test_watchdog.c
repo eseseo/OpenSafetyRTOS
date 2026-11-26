@@ -95,5 +95,16 @@ int main(void)
     UT_CHECK(SAFETY_WDG_KICK_PERIOD_MS <= (SAFETY_TASK_PERIOD_MS / 2U));
     UT_CHECK((2U * SAFETY_TASK_PERIOD_MS) <= SAFETY_WDG_TIMEOUT_MS);
 
+    safety_wdg_t incomplete = { 0 };
+    UT_CHECK(safety_wdg_checkpoint(&incomplete, CP_MPU) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_wdg_cycle_end(&incomplete) == SAFETY_ERR_PARAM);
+    incomplete = wdg;
+    incomplete.required_mask = 0U;
+    UT_CHECK(safety_wdg_cycle_end(&incomplete) == SAFETY_ERR_PARAM);
+    incomplete = wdg;
+    ops.hw_kick = NULL;
+    UT_CHECK(safety_wdg_cycle_end(&incomplete) == SAFETY_ERR_PARAM);
+    UT_CHECK_EQ_U32(tb.kicks, 3U);
+
     return ut_summary("watchdog");
 }

@@ -18,10 +18,33 @@ implementation assurance and assessment for those services.
 ## Verification baseline
 
 Host CTest passed 10 executables. Seven AN386 tests cover boot, interrupt-table relocation, permanent stalls, peripheral isolation, repeated watchdog resets and two POST rejection paths. Apple LLVM 21.0.0 host instrumentation at -O0 measured 632/641 lines,
-250/284 branches and 62/85 MC/DC conditions across the compiled kernel and
+272/284 branches and 85/85 MC/DC conditions across the compiled kernel and
 architecture sources. ARM-only code, HAL, assembly, FreeRTOS and integration
-firmware are outside those host figures. Coverage still needs per-decision
-analysis, additional tests or justified exclusions and independent review.
+firmware are outside those host figures. The 23 additional condition pairs cover MPU validation (13), channel error
+handling (3), mailbox receiver setup (1), safe-state handling (2) and watchdog
+guard conditions (4). The 12 uncovered branch outcomes and target-specific
+coverage still require analysis and independent review.
+
+To reproduce on macOS with Apple Clang and the matching LLVM tools, run from
+the repository root in Bash or Zsh. The fresh directory isolates each run's
+profiles. The final command also supports `show -show-mcdc` in place of
+`report -show-mcdc-summary` to inspect the executed condition pairs.
+
+```sh
+build_dir=$(mktemp -d)
+cmake -S tests/unit -B "$build_dir" -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_C_FLAGS="-O0 -fprofile-instr-generate -fcoverage-mapping -fcoverage-mcdc"
+cmake --build "$build_dir" --parallel
+LLVM_PROFILE_FILE="$build_dir/%m-%p.profraw" \
+  ctest --test-dir "$build_dir" --no-tests=error --output-on-failure
+xcrun llvm-profdata merge -sparse "$build_dir"/*.profraw -o "$build_dir/merged.profdata"
+objects=()
+for binary in "$build_dir"/test_*; do
+  if [[ "$binary" != "$build_dir/test_ivt" ]]; then objects+=(-object "$binary"); fi
+done
+xcrun llvm-cov report -show-mcdc-summary "$build_dir/test_ivt" "${objects[@]}" \
+  -instr-profile="$build_dir/merged.profdata" -ignore-filename-regex='tests/unit/'
+```
 
 ## Customer delivery
 

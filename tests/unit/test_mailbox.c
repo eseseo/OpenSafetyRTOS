@@ -181,5 +181,9 @@ int main(void)
     UT_CHECK(safety_mailbox_receive(&rx, &mb, NULL, sizeof(out), NULL) ==
              SAFETY_ERR_PARAM);
 
+    safety_mailbox_rx_t uninitialized = { 0 };
+    UT_CHECK(safety_mailbox_receive(&uninitialized, &mb, out, sizeof(out), NULL)
+             == SAFETY_ERR_PARAM);
+
     return ut_summary("mailbox");
 }

@@ -60,22 +60,31 @@ int main(void)
     message.crc = safety_crc32(message.data, message.data_len);
     UT_CHECK(safety_channel_init(&monitor, &ops, NULL) == SAFETY_ERR_PARAM);
     UT_CHECK(safety_channel_init(&monitor, &ops, check) == SAFETY_OK);
+    UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 0U, NULL) == SAFETY_ERR_PARAM);
+    UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL0_NORMAL && out == 0U);
+    UT_CHECK(safety_channel_cycle(&monitor, SAFETY_MAILBOX_MAX_AGE_MS + 1U,
+                                  &message, &out, 1U, NULL) == SAFETY_ERR_STALE);
+    UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL1_DEGRADED && out == 0U);
+    message.timestamp_ms = SAFETY_MAILBOX_MAX_AGE_MS + 1U;
+    UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL)
+             == SAFETY_OK);
+    UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL0_NORMAL && out == 42U);
     message.schema_id = 2U;
-    UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 1U, NULL) == SAFETY_ERR_RANGE);
+    UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL) == SAFETY_ERR_RANGE);
     UT_CHECK(test.notified == SAFETY_SS_LEVEL1_DEGRADED);
     message.schema_id = 1U;
-    UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 1U, NULL) == SAFETY_OK);
+    UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL) == SAFETY_OK);
     UT_CHECK(out == 42U && monitor.state.level == SAFETY_SS_LEVEL0_NORMAL);
     message.crc ^= 1U;
     for (i = 0U; i < SAFETY_MAILBOX_FAILURE_LIMIT; i++)
     {
         UT_CHECK(test.stops == 0U);
-        UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 1U, NULL)
+        UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL)
                  == SAFETY_ERR_CRC_FAIL);
     }
     UT_CHECK(test.stops == 1U && test.notification_preceded_stop);
     message.crc ^= 1U;
-    UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 1U, NULL) == SAFETY_ERR_STATE);
+    UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL) == SAFETY_ERR_STATE);
     UT_CHECK(test.stops == 1U && monitor.state.level == SAFETY_SS_LEVEL2_CONTROLLED_STOP);
     return ut_summary("channel_monitor");
 }
