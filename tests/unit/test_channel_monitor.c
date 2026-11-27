@@ -41,7 +41,8 @@ int main(void)
     const safety_ss_ops_t ops = { .suspend_qm = suspend_qm, .app_notify = notify,
                                   .system_reset = reset, .ctx = &test };
     safety_channel_monitor_t monitor = { 0 };
-    safety_mailbox_t message = { .data_len = 1U, .schema_id = 1U, .data = { 42U } };
+    safety_mailbox_t message = { 0 };
+    safety_mailbox_t frame = { .data_len = 1U, .schema_id = 1U, .data = { 42U } };
     uint8_t out = 0U;
     uint32_t i;
     safety_ss_ops_t incomplete = ops;
@@ -57,7 +58,7 @@ int main(void)
     incomplete = ops;
     incomplete.system_reset = NULL;
     UT_CHECK(safety_channel_init(&monitor, &incomplete, check) == SAFETY_ERR_PARAM);
-    message.crc = safety_crc32(message.data, message.data_len);
+    UT_CHECK(safety_mailbox_publish(&message, &frame) == SAFETY_OK);
     UT_CHECK(safety_channel_init(&monitor, &ops, NULL) == SAFETY_ERR_PARAM);
     UT_CHECK(safety_channel_init(&monitor, &ops, check) == SAFETY_OK);
     UT_CHECK(safety_channel_cycle(&monitor, 0U, &message, &out, 0U, NULL) == SAFETY_ERR_PARAM);
@@ -65,14 +66,25 @@ int main(void)
     UT_CHECK(safety_channel_cycle(&monitor, SAFETY_MAILBOX_MAX_AGE_MS + 1U,
                                   &message, &out, 1U, NULL) == SAFETY_ERR_STALE);
     UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL1_DEGRADED && out == 0U);
-    message.timestamp_ms = SAFETY_MAILBOX_MAX_AGE_MS + 1U;
+    frame.timestamp_ms = SAFETY_MAILBOX_MAX_AGE_MS + 1U;
+    UT_CHECK(safety_mailbox_publish(&message, &frame) == SAFETY_OK);
     UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL)
              == SAFETY_OK);
     UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL0_NORMAL && out == 42U);
-    message.schema_id = 2U;
+    UT_CHECK(safety_channel_cycle(&monitor, frame.timestamp_ms, &message, &out, 1U, NULL)
+             == SAFETY_ERR_SEQUENCE);
+    UT_CHECK(monitor.state.level == SAFETY_SS_LEVEL1_DEGRADED);
+    frame.sequence++;
+    UT_CHECK(safety_mailbox_publish(&message, &frame) == SAFETY_OK);
+    UT_CHECK(safety_channel_cycle(&monitor, frame.timestamp_ms, &message, &out, 1U, NULL)
+             == SAFETY_OK);
+    frame.sequence++;
+    frame.schema_id = 2U;
+    UT_CHECK(safety_mailbox_publish(&message, &frame) == SAFETY_OK);
     UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL) == SAFETY_ERR_RANGE);
     UT_CHECK(test.notified == SAFETY_SS_LEVEL1_DEGRADED);
-    message.schema_id = 1U;
+    frame.schema_id = 1U;
+    UT_CHECK(safety_mailbox_publish(&message, &frame) == SAFETY_OK);
     UT_CHECK(safety_channel_cycle(&monitor, message.timestamp_ms, &message, &out, 1U, NULL) == SAFETY_OK);
     UT_CHECK(out == 42U && monitor.state.level == SAFETY_SS_LEVEL0_NORMAL);
     message.crc ^= 1U;

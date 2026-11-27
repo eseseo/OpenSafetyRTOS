@@ -7,6 +7,46 @@
 #include "safety/mailbox.h"
 #include "safety/crc32.h"
 
+static uint32_t frame_crc(const safety_mailbox_t *frame)
+{
+    const uint32_t fields[] = { frame->sequence, frame->timestamp_ms,
+                                frame->data_len, frame->schema_id };
+    uint32_t crc = SAFETY_CRC32_INIT;
+    for (size_t i = 0U; i < sizeof(fields) / sizeof(fields[0]); i++)
+    {
+        uint8_t bytes[4];
+        for (uint32_t j = 0U; j < 4U; j++)
+        {
+            bytes[j] = (uint8_t)(fields[i] >> (8U * j));
+        }
+        crc = safety_crc32_update(crc, bytes, sizeof(bytes));
+    }
+    return safety_crc32_final(safety_crc32_update(crc, frame->data, frame->data_len));
+}
+
+safety_status_t safety_mailbox_publish(volatile safety_mailbox_t *mb,
+                                       const safety_mailbox_t *frame)
+{
+    if ((mb == NULL) || (frame == NULL) || (frame->data_len > SAFETY_MAILBOX_DATA_MAX))
+    {
+        return SAFETY_ERR_PARAM;
+    }
+    mb->committed = 0U;
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    mb->sequence = frame->sequence;
+    mb->timestamp_ms = frame->timestamp_ms;
+    mb->schema_id = frame->schema_id;
+    mb->data_len = frame->data_len;
+    for (uint32_t i = 0U; i < frame->data_len; i++)
+    {
+        mb->data[i] = frame->data[i];
+    }
+    mb->crc = frame_crc(frame);
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    mb->committed = 1U;
+    return SAFETY_OK;
+}
+
 /* Snapshot the QM-writable mailbox into ASIL-D memory field by field
  * (volatile source; avoids validate-then-reread TOCTOU hazards). */
 static void mailbox_snapshot(safety_mailbox_t *dst,
@@ -15,6 +55,9 @@ static void mailbox_snapshot(safety_mailbox_t *dst,
     uint32_t i;
     uint32_t copy_len;
 
+    dst->committed = src->committed;
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    dst->sequence = src->sequence;
     dst->crc          = src->crc;
     dst->timestamp_ms = src->timestamp_ms;
     dst->data_len     = src->data_len;
@@ -40,12 +83,16 @@ static safety_status_t mailbox_validate(const safety_mailbox_rx_t *rx,
     uint32_t age;
 
     /* Structural check: length must fit the mailbox payload area. */
-    if (snap->data_len > SAFETY_MAILBOX_DATA_MAX)
+    if (snap->committed != 1U)
+    {
+        status = SAFETY_ERR_CRC_FAIL;
+    }
+    else if (snap->data_len > SAFETY_MAILBOX_DATA_MAX)
     {
         status = SAFETY_ERR_RANGE;
     }
     /* (1) CRC-32 integrity check */
-    else if (safety_crc32(snap->data, (size_t)snap->data_len) != snap->crc)
+    else if (frame_crc(snap) != snap->crc)
     {
         status = SAFETY_ERR_CRC_FAIL;
     }
@@ -57,6 +104,10 @@ static safety_status_t mailbox_validate(const safety_mailbox_rx_t *rx,
         if (age > SAFETY_MAILBOX_MAX_AGE_MS)
         {
             status = SAFETY_ERR_STALE;
+        }
+        else if (snap->sequence != rx->expected_sequence)
+        {
+            status = SAFETY_ERR_SEQUENCE;
         }
         /* (3) Value range check against the expected schema */
         else if (!rx->ops->range_check(rx->ops->ctx, snap->data,
@@ -83,6 +134,7 @@ safety_status_t safety_mailbox_rx_init(safety_mailbox_rx_t *rx,
         (ops->escalate_level2 != NULL))
     {
         rx->ops = ops;
+        rx->expected_sequence = 0U;
         rx->consecutive_failures = 0U;
         status = SAFETY_OK;
     }
@@ -106,19 +158,13 @@ safety_status_t safety_mailbox_receive(safety_mailbox_rx_t *rx,
     {
         mailbox_snapshot(&snap, mb);
 
-        if ((snap.data_len <= SAFETY_MAILBOX_DATA_MAX) &&
-            (snap.data_len > out_len))
+        status = mailbox_validate(rx, &snap);
+        if ((status == SAFETY_OK) && (snap.data_len > out_len))
         {
-            /* Caller buffer too small for a structurally valid length:
-             * parameter error, not a QM data fault — does not count toward
-             * escalation (SSR-017). An oversize data_len instead falls
-             * through to validation, which reports SAFETY_ERR_RANGE. */
             status = SAFETY_ERR_PARAM;
         }
         else
         {
-            status = mailbox_validate(rx, &snap);
-
             if (status == SAFETY_OK)
             {
                 uint32_t i;
@@ -130,6 +176,7 @@ safety_status_t safety_mailbox_receive(safety_mailbox_rx_t *rx,
                 {
                     *rx_len = snap.data_len;
                 }
+                rx->expected_sequence++;
                 rx->consecutive_failures = 0U;
             }
             else

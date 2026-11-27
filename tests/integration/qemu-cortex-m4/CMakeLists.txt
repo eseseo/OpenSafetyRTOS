@@ -61,3 +61,6 @@ add_test(NAME qemu_rom_post_rejection COMMAND "${Python3_EXECUTABLE}"
 
 add_an386_test(osr_qemu_reset_history qemu_consecutive_watchdog_resets)
 target_compile_definitions(osr_qemu_reset_history PRIVATE OSR_TEST_RESET_HISTORY=1)
+
+add_an386_test(osr_qemu_mailbox_protocol qemu_mailbox_protocol)
+target_compile_definitions(osr_qemu_mailbox_protocol PRIVATE OSR_TEST_MAILBOX_PROTOCOL=1)

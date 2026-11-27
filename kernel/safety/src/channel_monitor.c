@@ -55,7 +55,7 @@ safety_status_t safety_channel_cycle(safety_channel_monitor_t *monitor, uint32_t
                 safety_ss_report_cycle_ok(&monitor->state);
             }
             else if (((result == SAFETY_ERR_STALE) || (result == SAFETY_ERR_RANGE) ||
-                      (result == SAFETY_ERR_CRC_FAIL)) &&
+                      (result == SAFETY_ERR_SEQUENCE) || (result == SAFETY_ERR_CRC_FAIL)) &&
                      (monitor->state.level == SAFETY_SS_LEVEL0_NORMAL))
             {
                 /* The receiver owns the consecutive-failure threshold. */

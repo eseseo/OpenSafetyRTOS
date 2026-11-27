@@ -46,16 +46,26 @@ extern "C" {
 
 /**
  * Shared-memory mailbox layout. Written by QM, read by SafetyFunction.
- * The CRC covers data[0 .. data_len-1].
+ * CRC covers little-endian sequence, timestamp_ms, data_len, schema_id, then payload.
  */
 typedef struct
 {
-    uint32_t crc;          /**< CRC-32 (IEEE 802.3) over data[0..data_len-1] */
+    uint32_t committed;    /**< 1 after publication; zero while being updated */
+    uint32_t sequence;
+    uint32_t crc;
     uint32_t timestamp_ms; /**< Sender timestamp from the safety tick base */
     uint32_t data_len;     /**< Payload length in bytes (<= DATA_MAX) */
     uint32_t schema_id;    /**< Identifies the expected value schema */
     uint8_t  data[SAFETY_MAILBOX_DATA_MAX];
 } safety_mailbox_t;
+
+/** Publish a private frame into a distinct single-writer shared mailbox.
+ * The receiver runs in a higher-priority ISR on the same core. Both ends
+ * start at sequence zero after coordinated reset and wrap modulo 2^32.
+ * Clear shared RAM before enabling either end after reset.
+ */
+safety_status_t safety_mailbox_publish(volatile safety_mailbox_t *mb,
+                                       const safety_mailbox_t *frame);
 
 /** Injected operations (must remain valid for the receiver's lifetime). */
 typedef struct
@@ -78,6 +88,7 @@ typedef struct
 {
     const safety_mailbox_ops_t *ops;
     uint32_t consecutive_failures;
+    uint32_t expected_sequence;
 } safety_mailbox_rx_t;
 
 /**
@@ -102,7 +113,7 @@ safety_status_t safety_mailbox_rx_init(safety_mailbox_rx_t *rx,
  * @param rx_len  Optional: receives the payload length actually copied.
  *
  * @return SAFETY_OK, SAFETY_ERR_PARAM, SAFETY_ERR_CRC_FAIL,
- *         SAFETY_ERR_STALE, or SAFETY_ERR_RANGE.
+ *         SAFETY_ERR_STALE, SAFETY_ERR_SEQUENCE, or SAFETY_ERR_RANGE.
  */
 safety_status_t safety_mailbox_receive(safety_mailbox_rx_t *rx,
                                        const volatile safety_mailbox_t *mb,

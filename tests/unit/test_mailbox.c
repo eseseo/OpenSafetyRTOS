@@ -42,18 +42,19 @@ static void tb_escalate(void *ctx)
 }
 
 static void mb_fill(safety_mailbox_t *mb, uint32_t ts, const uint8_t *payload,
-                    uint32_t len)
+                    uint32_t len, uint32_t sequence)
 {
+    safety_mailbox_t frame = { .sequence = sequence };
     uint32_t i;
 
-    mb->timestamp_ms = ts;
-    mb->data_len = len;
-    mb->schema_id = 1U;
+    frame.timestamp_ms = ts;
+    frame.data_len = len;
+    frame.schema_id = 1U;
     for (i = 0U; i < len; i++)
     {
-        mb->data[i] = payload[i];
+        frame.data[i] = payload[i];
     }
-    mb->crc = safety_crc32(mb->data, len);
+    UT_CHECK(safety_mailbox_publish(mb, &frame) == SAFETY_OK);
 }
 
 int main(void)
@@ -93,7 +94,7 @@ int main(void)
     tb.range_ok = true;
     tb.range_calls = 0U;
     tb.escalations = 0U;
-    mb_fill(&mb, 95U, payload, 4U);
+    mb_fill(&mb, 95U, payload, 4U, rx.expected_sequence);
     rx_len = 0U;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) ==
              SAFETY_OK);
@@ -102,37 +103,37 @@ int main(void)
     UT_CHECK_EQ_U32(tb.range_calls, 1U);
 
     /* --- CRC failure ---------------------------------------------------*/
-    mb_fill(&mb, 100U, payload, 4U);
+    mb_fill(&mb, 100U, payload, 4U, rx.expected_sequence);
     mb.crc ^= 0x1U;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_CRC_FAIL);
 
     /* --- staleness: boundary (age == MAX_AGE is accepted) -------------- */
     tb.now_ms = 1000U;
-    mb_fill(&mb, 1000U - SAFETY_MAILBOX_MAX_AGE_MS, payload, 4U);
+    mb_fill(&mb, 1000U - SAFETY_MAILBOX_MAX_AGE_MS, payload, 4U, rx.expected_sequence);
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_OK);
 
     /* --- staleness: age == MAX_AGE + 1 is rejected ---------------------- */
-    mb_fill(&mb, 1000U - (SAFETY_MAILBOX_MAX_AGE_MS + 1U), payload, 4U);
+    mb_fill(&mb, 1000U - (SAFETY_MAILBOX_MAX_AGE_MS + 1U), payload, 4U, rx.expected_sequence);
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_STALE);
 
     /* --- range check failure ------------------------------------------- */
     tb.range_ok = false;
-    mb_fill(&mb, 1000U, payload, 4U);
+    mb_fill(&mb, 1000U, payload, 4U, rx.expected_sequence);
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_RANGE);
     tb.range_ok = true;
 
     /* --- oversize data_len is a RANGE failure --------------------------- */
-    mb_fill(&mb, 1000U, payload, 4U);
+    mb_fill(&mb, 1000U, payload, 4U, rx.expected_sequence);
     mb.data_len = SAFETY_MAILBOX_DATA_MAX + 1U;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_RANGE);
 
     /* --- undersized caller buffer: PARAM error, no escalation count ---- */
-    mb_fill(&mb, 1000U, payload, 4U);
+    mb_fill(&mb, 1000U, payload, 4U, rx.expected_sequence);
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, 2U, NULL) ==
              SAFETY_ERR_PARAM);
 
@@ -145,7 +146,7 @@ int main(void)
         uint32_t i;
         for (i = 0U; i < SAFETY_MAILBOX_FAILURE_LIMIT; i++)
         {
-            mb_fill(&mb, tb.now_ms, payload, 4U);
+            mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence);
             mb.crc ^= 0xFFU;
             UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out),
                                             NULL) == SAFETY_ERR_CRC_FAIL);
@@ -156,18 +157,18 @@ int main(void)
     /* --- a success in between resets the counter ------------------------ */
     UT_CHECK(safety_mailbox_rx_init(&rx, &ops) == SAFETY_OK);
     tb.escalations = 0U;
-    mb_fill(&mb, tb.now_ms, payload, 4U);
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence);
     mb.crc ^= 0xFFU;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_CRC_FAIL);
-    mb_fill(&mb, tb.now_ms, payload, 4U);
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence);
     mb.crc ^= 0xFFU;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_CRC_FAIL);
-    mb_fill(&mb, tb.now_ms, payload, 4U); /* valid */
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence); /* valid */
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_OK);
-    mb_fill(&mb, tb.now_ms, payload, 4U);
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence);
     mb.crc ^= 0xFFU;
     UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) ==
              SAFETY_ERR_CRC_FAIL);
@@ -184,6 +185,42 @@ int main(void)
     safety_mailbox_rx_t uninitialized = { 0 };
     UT_CHECK(safety_mailbox_receive(&uninitialized, &mb, out, sizeof(out), NULL)
              == SAFETY_ERR_PARAM);
+
+    /* Reject every protected header mutation without delivering a payload. */
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence);
+    out[0] = 0xAAU;
+    rx_len = 99U;
+    mb.sequence ^= 1U;
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) == SAFETY_ERR_CRC_FAIL);
+    mb.sequence ^= 1U;
+    mb.schema_id ^= 1U;
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) == SAFETY_ERR_CRC_FAIL);
+    mb.schema_id ^= 1U;
+    mb.timestamp_ms ^= 1U;
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) == SAFETY_ERR_CRC_FAIL);
+    mb.timestamp_ms ^= 1U;
+    mb.data_len ^= 1U;
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) == SAFETY_ERR_CRC_FAIL);
+    mb.data_len ^= 1U;
+    mb.committed ^= 1U;
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), &rx_len) == SAFETY_ERR_CRC_FAIL);
+    mb.committed ^= 1U;
+    UT_CHECK(out[0] == 0xAAU && rx_len == 99U);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_OK);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_ERR_SEQUENCE);
+    mb_fill(&mb, tb.now_ms, payload, 4U, rx.expected_sequence + 1U);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_ERR_SEQUENCE);
+    UT_CHECK(safety_mailbox_rx_init(&rx, &ops) == SAFETY_OK);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_ERR_SEQUENCE);
+    rx.expected_sequence = UINT32_MAX;
+    mb_fill(&mb, tb.now_ms, payload, 4U, UINT32_MAX);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_OK);
+    mb_fill(&mb, tb.now_ms, payload, 4U, 0U);
+    UT_CHECK(safety_mailbox_receive(&rx, &mb, out, sizeof(out), NULL) == SAFETY_OK);
+    safety_mailbox_t invalid = { .data_len = SAFETY_MAILBOX_DATA_MAX + 1U };
+    UT_CHECK(safety_mailbox_publish(NULL, &invalid) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mailbox_publish(&mb, NULL) == SAFETY_ERR_PARAM);
+    UT_CHECK(safety_mailbox_publish(&mb, &invalid) == SAFETY_ERR_PARAM);
 
     return ut_summary("mailbox");
 }

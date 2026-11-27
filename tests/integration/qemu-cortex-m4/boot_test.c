@@ -83,7 +83,7 @@ static safety_channel_monitor_t monitor;
 static volatile safety_ss_level_t notified_level;
 static volatile bool stop_requested;
 static volatile uint32_t accepted;
-static volatile uint32_t stale_count;
+static volatile uint32_t rejected_count;
 
 static volatile uint32_t initialized_word = INITIALIZED_WORD;
 
@@ -167,13 +167,11 @@ static void unprivileged_probe(void *argument)
             (void)*(volatile const uint32_t *)0x40001004UL;
             osr_boot_test_fail();
 #endif
-            const uint8_t sample = 37U;
-            shared.frame.mailbox.timestamp_ms = 0U; /* Start of the monitoring epoch. */
-            shared.frame.mailbox.schema_id = 1U;
-            shared.frame.mailbox.data_len = 1U;
-            shared.frame.mailbox.data[0] = sample;
-            shared.frame.mailbox.crc = safety_crc32(&sample, 1U);
-            __asm__ volatile("dmb" ::: "memory");
+            const safety_mailbox_t frame = { .data_len = 1U, .schema_id = 1U, .data = { 37U } };
+            if (safety_mailbox_publish(&shared.frame.mailbox, &frame) != SAFETY_OK)
+            {
+                osr_boot_test_fail();
+            }
             shared.frame.progress = 2U;
         }
     }
@@ -209,7 +207,7 @@ void osr_watchdog_nmi(void)
     }
 #ifdef OSR_TEST_STALL_RESET
     if (!monitor_stalled || !output_was_safe || accepted == 0U ||
-        stale_count != SAFETY_MAILBOX_FAILURE_LIMIT || !stop_requested)
+        rejected_count != SAFETY_MAILBOX_FAILURE_LIMIT || !stop_requested)
     {
         osr_boot_test_fail();
     }
@@ -312,10 +310,10 @@ static void monitor_cycle(uint32_t now_ms)
         {
             accepted++;
         }
-        else if (status == SAFETY_ERR_STALE)
+        else if (status == (now_ms > SAFETY_MAILBOX_MAX_AGE_MS ? SAFETY_ERR_STALE : SAFETY_ERR_SEQUENCE))
         {
-            stale_count++;
-            if (stale_count < SAFETY_MAILBOX_FAILURE_LIMIT &&
+            rejected_count++;
+            if (rejected_count < SAFETY_MAILBOX_FAILURE_LIMIT &&
                 notified_level != SAFETY_SS_LEVEL1_DEGRADED)
             {
                 osr_boot_test_fail();
@@ -398,7 +396,7 @@ static void verify_scheduler(void *argument)
 
     /* RTOS APIs execute in task context, outside the high-priority ISR. */
     vTaskSuspend(probe_handle);
-    if (mps2_output_enabled() || accepted == 0U || stale_count != SAFETY_MAILBOX_FAILURE_LIMIT ||
+    if (mps2_output_enabled() || accepted == 0U || rejected_count != SAFETY_MAILBOX_FAILURE_LIMIT ||
         safety_ss_get_level(&monitor.state) != SAFETY_SS_LEVEL2_CONTROLLED_STOP ||
         notified_level != SAFETY_SS_LEVEL2_CONTROLLED_STOP ||
         eTaskGetState(probe_handle) != eSuspended)
@@ -410,6 +408,57 @@ static void verify_scheduler(void *argument)
 #endif
     finish("Cortex-M4 timer, mailbox and controlled stop passed\n", 0U);
 }
+
+#ifdef OSR_TEST_MAILBOX_PROTOCOL
+static void check_mailbox_protocol(const safety_ss_ops_t *ops)
+{
+    safety_mailbox_t frame = { .schema_id = 1U, .data_len = 1U, .data = { 37U } };
+    uint8_t sample = 0U;
+    volatile safety_mailbox_t *mb = &shared.frame.mailbox;
+    if (safety_channel_init(&monitor, ops, sample_valid) != SAFETY_OK ||
+        safety_mailbox_publish(mb, &frame) != SAFETY_OK)
+    {
+        osr_boot_test_fail();
+    }
+    mb->timestamp_ms ^= 1U;
+    if (safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_ERR_CRC_FAIL)
+    {
+        osr_boot_test_fail();
+    }
+    mb->timestamp_ms ^= 1U;
+    /* Model IRQ entry after the writer invalidates the slot, before commit. */
+    mb->committed = 0U;
+    if (safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_ERR_CRC_FAIL ||
+        sample != 0U || safety_mailbox_publish(mb, &frame) != SAFETY_OK ||
+        safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_OK ||
+        sample != 37U)
+    {
+        osr_boot_test_fail();
+    }
+    frame.sequence = 2U;
+    if (safety_mailbox_publish(mb, &frame) != SAFETY_OK ||
+        safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_ERR_SEQUENCE)
+    {
+        osr_boot_test_fail();
+    }
+    /* Seed the boundary to avoid four billion timer periods. */
+    monitor.rx.expected_sequence = UINT32_MAX;
+    frame.sequence = UINT32_MAX;
+    if (safety_mailbox_publish(mb, &frame) != SAFETY_OK ||
+        safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_OK)
+    {
+        osr_boot_test_fail();
+    }
+    frame.sequence = 0U;
+    if (safety_mailbox_publish(mb, &frame) != SAFETY_OK ||
+        safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_OK ||
+        safety_channel_cycle(&monitor, 0U, mb, &sample, 1U, NULL) != SAFETY_ERR_SEQUENCE)
+    {
+        osr_boot_test_fail();
+    }
+    finish("Mailbox header, partial publication, gap, wrap and duplicate checks passed\n", 0U);
+}
+#endif
 
 void osr_boot_test_main(void);
 
@@ -431,6 +480,9 @@ void osr_boot_test_main(void)
     static const safety_ss_ops_t state_ops = {
         .suspend_qm = request_stop, .app_notify = notify_level, .system_reset = system_reset
     };
+#ifdef OSR_TEST_MAILBOX_PROTOCOL
+    check_mailbox_protocol(&state_ops);
+#endif
 #ifdef OSR_TEST_IVT_RESET
     if (reset_witness == RESET_WITNESS)
     {

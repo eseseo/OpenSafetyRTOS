@@ -27,6 +27,7 @@ typedef enum
 {
     SAFETY_OK             = 0x00,  /**< Operation succeeded */
     SAFETY_ERR_CRC_FAIL   = 0x1A,  /**< CRC integrity check failed */
+    SAFETY_ERR_SEQUENCE   = 0x71,  /**< Expected publication sequence missing */
     SAFETY_ERR_STALE      = 0x2B,  /**< Data older than freshness bound */
     SAFETY_ERR_RANGE      = 0x3C,  /**< Value/range/schema check failed */
     SAFETY_ERR_PARAM      = 0x4D,  /**< Invalid parameter (NULL, size, ...) */

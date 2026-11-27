@@ -283,7 +283,7 @@ ctest --test-dir build-qemu --output-on-failure --no-tests=error
 The AN386 test boots an unprivileged FreeRTOS publisher and validates its mailbox
 from a priority-zero CMSDK Timer0 interrupt every 2 ms. Timer1 supplies elapsed time.
 While the privileged test task holds a FreeRTOS critical section, the safety monitor
-accepts the initial message, rejects its stale timestamp, enters Level 1 and then
+accepts the initial message, rejects subsequent duplicate publications, enters Level 1 and then
 latches Level 2 on the third consecutive failure. After leaving the critical section,
 the test suspends the publisher and checks its scheduler state.
 
