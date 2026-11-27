@@ -46,6 +46,8 @@ xcrun llvm-cov report -show-mcdc-summary "$build_dir/test_ivt" "${objects[@]}" \
   -instr-profile="$build_dir/merged.profdata" -ignore-filename-regex='tests/unit/'
 ```
 
+[제품화 잔여 작업과 완료 기준](RELEASE_READINESS.md)
+
 ## Customer delivery
 
 Before declaring a supported release, baseline the MCU, board, compiler,
